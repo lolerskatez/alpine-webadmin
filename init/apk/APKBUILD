@@ -1,0 +1,29 @@
+# Contributor: Alpine WebAdmin Team
+# Maintainer: Alpine WebAdmin Team
+pkgname=alpine-webadmin
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Lightweight web administration platform for Alpine Linux"
+url="https://github.com/alpine-webadmin/alpine-webadmin"
+arch="x86_64"
+license="MIT"
+options="!check"
+source="$pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$pkgname-$pkgver"
+
+build() {
+    export CGO_ENABLED=0
+    go build -ldflags="-s -w" -o bin/webadmin ./cmd/webadmin
+    go build -ldflags="-s -w" -o bin/roothelper ./cmd/roothelper
+}
+
+package() {
+    install -Dm755 bin/webadmin "$pkgdir"/usr/sbin/webadmin
+    install -Dm755 bin/roothelper "$pkgdir"/usr/sbin/roothelper
+
+    install -Dm640 config.json "$pkgdir"/etc/webadmin/config.json
+    install -Dm640 services.json "$pkgdir"/etc/webadmin/services.json
+
+    install -Dm755 init/openrc/webadmin "$pkgdir"/etc/init.d/webadmin
+    install -Dm755 init/openrc/roothelper "$pkgdir"/etc/init.d/roothelper
+}

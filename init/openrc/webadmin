@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+
+description="Alpine WebAdmin Web Server"
+command="/usr/sbin/webadmin"
+command_args="-config /etc/webadmin/config.json"
+command_user="webadmin:webadmin"
+pidfile="/run/webadmin/webadmin.pid"
+command_background=true
+
+depend() {
+    need net roothelper
+}
+
+start_pre() {
+    checkpath --directory --mode 0750 --owner webadmin:webadmin /run/webadmin
+}

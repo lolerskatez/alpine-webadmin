@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Alpine WebAdmin - System management interface">
+    <meta name="theme-color" content="#0f172a">
+    <title>Alpine WebAdmin</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <script defer src="/assets/alpine.min.js"></script>
+    <script defer src="/assets/app.js"></script>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <div id="app" x-data="app()" x-init="initApp()">
+        <!-- Login Screen -->
+        <template x-if="!authenticated">
+            <div class="login-screen" role="main" aria-label="Login">
+                <div class="login-box">
+                    <h1>Alpine WebAdmin</h1>
+                    <p class="login-subtitle">System Management</p>
+                    <form @submit.prevent="login()" aria-label="Authentication">
+                        <label for="password">Password</label>
+                        <input id="password" type="password" x-model="password"
+                               placeholder="Enter password" required
+                               autocomplete="current-password"
+                               aria-describedby="login-error"
+                               @keydown.enter="login()">
+                        <p id="login-error" class="error" x-show="loginError" x-text="loginError" role="alert"></p>
+                        <button type="submit" :aria-busy="loginLoading">
+                            <span x-show="!loginLoading">Sign In</span>
+                            <span x-show="loginLoading">Signing in...</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </template>
+
+        <!-- Main Application -->
+        <template x-if="authenticated">
+            <div class="app-layout" :class="{'sidebar-open': sidebarOpen}">
+                <!-- Mobile header -->
+                <header class="mobile-header" role="banner">
+                    <button class="menu-toggle"
+                            @click="sidebarOpen = !sidebarOpen"
+                            :aria-expanded="sidebarOpen"
+                            aria-label="Toggle navigation menu"
+                            aria-controls="sidebar-nav">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 12h18M3 6h18M3 18h18"/>
+                        </svg>
+                    </button>
+                    <span class="mobile-title">Alpine WebAdmin</span>
+                    <button @click="logout()" aria-label="Sign out" class="icon-btn">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                        </svg>
+                    </button>
+                </header>
+
+                <!-- Sidebar -->
+                <nav id="sidebar-nav"
+                     class="sidebar"
+                     role="navigation"
+                     aria-label="Main navigation"
+                     @keydown.escape.window="sidebarOpen = false">
+                    <div class="sidebar-brand">
+                        <span class="brand-icon">&#9670;</span>
+                        <span class="brand-text">WebAdmin</span>
+                    </div>
+
+                    <ul class="nav-list" role="menubar">
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('dashboard')"
+                                    :class="{active: tab==='dashboard'}"
+                                    :aria-current="tab==='dashboard' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                Dashboard
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('services')"
+                                    :class="{active: tab==='services'}"
+                                    :aria-current="tab==='services' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                                Services
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('packages')"
+                                    :class="{active: tab==='packages'}"
+                                    :aria-current="tab==='packages' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                                Packages
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('network')"
+                                    :class="{active: tab==='network'}"
+                                    :aria-current="tab==='network' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><path d="M5.64 18.36a9 9 0 1 1 12.72 0M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+                                Network
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('storage')"
+                                    :class="{active: tab==='storage'}"
+                                    :aria-current="tab==='storage' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                                Storage
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('users')"
+                                    :class="{active: tab==='users'}"
+                                    :aria-current="tab==='users' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                Users
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('logs')"
+                                    :class="{active: tab==='logs'}"
+                                    :aria-current="tab==='logs' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                Logs
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('sessions')"
+                                    :class="{active: tab==='sessions'}"
+                                    :aria-current="tab==='sessions' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                Sessions
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('system')"
+                                    :class="{active: tab==='system'}"
+                                    :aria-current="tab==='system' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.67 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.67 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.67a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                                System
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="sidebar-footer">
+                        <span class="version" x-text="'v' + version"></span>
+                        <button @click="logout()" class="logout-btn" aria-label="Sign out">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+                            </svg>
+                            Sign Out
+                        </button>
+                    </div>
+                </nav>
+
+                <!-- Overlay for mobile sidebar -->
+                <div class="sidebar-overlay"
+                     x-show="sidebarOpen"
+                     @click="sidebarOpen = false"
+                     aria-hidden="true"></div>
+
+                <!-- Main Content -->
+                <main id="main-content" class="main" role="main" tabindex="-1">
+                    <!-- Alerts Banner -->
+                    <div class="alerts-region" role="region" aria-label="System alerts"
+                         x-show="alerts.length > 0">
+                        <template x-for="alert in alerts" :key="alert.id">
+                            <div class="alert" :class="'alert-' + alert.level" role="alert">
+                                <span class="alert-icon" x-text="alert.level === 'error' ? '!' : 'i'"></span>
+                                <span x-text="alert.message"></span>
+                                <button class="alert-close"
+                                        @click="dismissAlert(alert.id)"
+                                        :aria-label="'Dismiss alert: ' + alert.message">&times;</button>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- ============ DASHBOARD ============ -->
+                    <section x-show="tab === 'dashboard'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="dashboard-heading">
+                        <h2 id="dashboard-heading" class="section-title">Dashboard</h2>
+
+                        <div class="metrics-grid">
+                            <div class="metric-card" tabindex="0">
+                                <div class="metric-header">
+                                    <span class="metric-label">CPU</span>
+                                    <span class="metric-trend" :class="cpuTrend">&#9650;</span>
+                                </div>
+                                <div class="metric-value" x-text="(telemetry.cpu?.aggregate ?? 0).toFixed(1) + '%'"></div>
+                                <div class="metric-sub" x-text="(telemetry.cpu?.per_core?.length || 0) + ' cores'"></div>
+                                <div class="metric-bar">
+                                    <div class="metric-bar-fill" :style="'width:' + (telemetry.cpu?.aggregate ?? 0) + '%'"></div>
+                                </div>
+                            </div>
+
+                            <div class="metric-card" tabindex="0">
+                                <div class="metric-header">
+                                    <span class="metric-label">Memory</span>
+                                </div>
+                                <div class="metric-value" x-text="formatKB(telemetry.memory?.used_kb)"></div>
+                                <div class="metric-sub" x-text="'of ' + formatKB(telemetry.memory?.total_kb)"></div>
+                                <div class="metric-bar">
+                                    <div class="metric-bar-fill"
+                                         :style="'width:' + ((telemetry.memory?.used_kb / telemetry.memory?.total_kb * 100) || 0) + '%'"></div>
+                                </div>
+                            </div>
+
+                            <div class="metric-card" tabindex="0">
+                                <div class="metric-header">
+                                    <span class="metric-label">Load</span>
+                                </div>
+                                <div class="metric-value" x-text="(telemetry.load?.load1 ?? 0).toFixed(2)"></div>
+                                <div class="metric-sub">1 min avg</div>
+                            </div>
+
+                            <div class="metric-card" tabindex="0">
+                                <div class="metric-header">
+                                    <span class="metric-label">Uptime</span>
+                                </div>
+                                <div class="metric-value" x-text="formatDuration(telemetry.uptime_sec)"></div>
+                                <div class="metric-sub" x-text="telemetry.hostname"></div>
+                            </div>
+
+                            <div class="metric-card" tabindex="0" x-show="telemetry.temp_c">
+                                <div class="metric-header">
+                                    <span class="metric-label">Temperature</span>
+                                </div>
+                                <div class="metric-value" x-text="(telemetry.temp_c ?? 0).toFixed(1) + ' &deg;C'"></div>
+                            </div>
+
+                            <div class="metric-card" tabindex="0">
+                                <div class="metric-header">
+                                    <span class="metric-label">Disk</span>
+                                </div>
+                                <div class="metric-value" x-text="diskUsedPercent() + '%'"></div>
+                                <div class="metric-sub">avg usage</div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header">
+                                <h3>Disk Usage</h3>
+                            </div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Disk usage by mountpoint">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Device</th>
+                                            <th role="columnheader">Mount</th>
+                                            <th role="columnheader">Used</th>
+                                            <th role="columnheader">Total</th>
+                                            <th role="columnheader">Usage</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="m in telemetry.mounts" :key="m.mountpoint">
+                                            <tr role="row">
+                                                <td role="cell" x-text="m.device"></td>
+                                                <td role="cell" x-text="m.mountpoint"></td>
+                                                <td role="cell" x-text="formatKB(m.used_kb)"></td>
+                                                <td role="cell" x-text="formatKB(m.total_kb)"></td>
+                                                <td role="cell">
+                                                    <div class="inline-bar">
+                                                        <div class="inline-bar-fill"
+                                                             :style="'width:' + ((m.used_kb / m.total_kb * 100) || 0) + '%'"
+                                                             :class="diskBarClass(m.used_kb, m.total_kb)"></div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header">
+                                <h3>Network Interfaces</h3>
+                            </div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Network interface statistics">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Interface</th>
+                                            <th role="columnheader">RX</th>
+                                            <th role="columnheader">TX</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="iface in telemetry.network" :key="iface.interface">
+                                            <tr role="row">
+                                                <td role="cell" x-text="iface.interface"></td>
+                                                <td role="cell" x-text="formatBytes(iface.rx_bytes)"></td>
+                                                <td role="cell" x-text="formatBytes(iface.tx_bytes)"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ SERVICES ============ -->
+                    <section x-show="tab === 'services'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="services-heading">
+                        <h2 id="services-heading" class="section-title">Services</h2>
+
+                        <div class="toolbar">
+                            <div class="toolbar-group">
+                                <input type="search"
+                                       x-model="serviceFilter"
+                                       placeholder="Filter services..."
+                                       class="search-input"
+                                       aria-label="Filter services">
+                                <button @click="loadServices()" class="btn" aria-label="Refresh services">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            <span class="toolbar-meta" x-text="filteredServices().length + ' services'"></span>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="OpenRC services">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Service</th>
+                                            <th role="columnheader">Status</th>
+                                            <th role="columnheader">Runlevel</th>
+                                            <th role="columnheader">Enabled</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="svc in filteredServices()" :key="svc.name">
+                                            <tr role="row" :class="{'row-disabled': svc._loading}">
+                                                <td role="cell" x-text="svc.name"></td>
+                                                <td role="cell">
+                                                    <span class="badge"
+                                                          :class="'badge-' + svc.status"
+                                                          x-text="svc.status"></span>
+                                                </td>
+                                                <td role="cell" x-text="svc.runlevel || '-'"></td>
+                                                <td role="cell">
+                                                    <span class="badge badge-subtle"
+                                                          x-text="svc.enabled ? 'Yes' : 'No'"></span>
+                                                </td>
+                                                <td role="cell" class="actions-col">
+                                                    <button class="btn btn-sm"
+                                                            @click="serviceAction(svc.name, 'start')"
+                                                            :disabled="svc.status === 'started' || svc._loading"
+                                                            :aria-label="'Start ' + svc.name">
+                                                        Start
+                                                    </button>
+                                                    <button class="btn btn-sm btn-danger"
+                                                            @click="serviceAction(svc.name, 'stop')"
+                                                            :disabled="svc.status === 'stopped' || svc._loading"
+                                                            :aria-label="'Stop ' + svc.name">
+                                                        Stop
+                                                    </button>
+                                                    <button class="btn btn-sm"
+                                                            @click="serviceAction(svc.name, 'restart')"
+                                                            :disabled="svc._loading"
+                                                            :aria-label="'Restart ' + svc.name">
+                                                        Restart
+                                                    </button>
+                                                    <button class="btn btn-sm btn-secondary"
+                                                            @click="serviceAction(svc.name, 'enable')"
+                                                            :disabled="svc.enabled || svc._loading"
+                                                            :aria-label="'Enable ' + svc.name + ' at boot'">
+                                                        Enable
+                                                    </button>
+                                                    <button class="btn btn-sm btn-secondary"
+                                                            @click="serviceAction(svc.name, 'disable')"
+                                                            :disabled="!svc.enabled || svc._loading"
+                                                            :aria-label="'Disable ' + svc.name + ' at boot'">
+                                                        Disable
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ PACKAGES ============ -->
+                    <section x-show="tab === 'packages'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="packages-heading">
+                        <h2 id="packages-heading" class="section-title">Packages</h2>
+
+                        <div class="toolbar">
+                            <div class="toolbar-group">
+                                <input type="search"
+                                       x-model="packageFilter"
+                                       placeholder="Search packages..."
+                                       class="search-input"
+                                       @keydown.enter="searchPackages()"
+                                       aria-label="Search packages">
+                                <button @click="searchPackages()" class="btn" aria-label="Search">Search</button>
+                                <button @click="loadPackages()" class="btn" aria-label="List installed">Installed</button>
+                            </div>
+                            <div class="toolbar-group">
+                                <button @click="packageAction('update')" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Update index">Update Index</button>
+                                <button @click="packageAction('upgrade')" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Upgrade all">Upgrade All</button>
+                            </div>
+                        </div>
+
+                        <div x-show="pkgOp && (pkgOp.state === 'running' || pkgOp.state === 'pending')" class="panel panel-info">
+                            <div class="panel-header">
+                                <h3 x-text="'Operation: ' + pkgOp.type + ' (' + pkgOp.state + ')'"></h3>
+                            </div>
+                            <div class="panel-body">
+                                <div class="progress-log" role="log" aria-live="polite" aria-atomic="false">
+                                    <template x-for="line in pkgOp.progress" :key="line.ts">
+                                        <div class="log-line" x-text="line.line"></div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Package list">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Package</th>
+                                            <th role="columnheader">Version</th>
+                                            <th role="columnheader">Description</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="pkg in packages" :key="pkg.name">
+                                            <tr role="row">
+                                                <td role="cell" x-text="pkg.name"></td>
+                                                <td role="cell" x-text="pkg.version || '-'" class="mono"></td>
+                                                <td role="cell" x-text="pkg.description || '-'" class="description-cell"></td>
+                                                <td role="cell" class="actions-col">
+                                                    <button class="btn btn-sm"
+                                                            x-show="!pkg.installed"
+                                                            @click="installPackage(pkg.name)"
+                                                            :disabled="pkgOpLoading"
+                                                            :aria-label="'Install ' + pkg.name">Install</button>
+                                                    <button class="btn btn-sm btn-danger"
+                                                            x-show="pkg.installed"
+                                                            @click="removePackage(pkg.name)"
+                                                            :disabled="pkgOpLoading"
+                                                            :aria-label="'Remove ' + pkg.name">Remove</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="packages.length === 0 && !pkgLoading" class="empty-state">No packages found.</div>
+                                <div x-show="pkgLoading" class="empty-state">Loading...</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ NETWORK ============ -->
+                    <section x-show="tab === 'network'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="network-heading">
+                        <h2 id="network-heading" class="section-title">Network</h2>
+
+                        <div class="toolbar">
+                            <button @click="loadNetwork()" class="btn" aria-label="Refresh network">Refresh</button>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Interfaces</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Network interfaces">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Interface</th>
+                                            <th role="columnheader">RX Bytes</th>
+                                            <th role="columnheader">RX Packets</th>
+                                            <th role="columnheader">TX Bytes</th>
+                                            <th role="columnheader">TX Packets</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="iface in networkData" :key="iface.interface">
+                                            <tr role="row">
+                                                <td role="cell" x-text="iface.interface"></td>
+                                                <td role="cell" x-text="formatBytes(iface.rx_bytes)"></td>
+                                                <td role="cell" x-text="formatNumber(iface.rx_packets)"></td>
+                                                <td role="cell" x-text="formatBytes(iface.tx_bytes)"></td>
+                                                <td role="cell" x-text="formatNumber(iface.tx_packets)"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="networkData.length === 0" class="empty-state">No network data available.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ STORAGE ============ -->
+                    <section x-show="tab === 'storage'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="storage-heading">
+                        <h2 id="storage-heading" class="section-title">Storage</h2>
+
+                        <div class="toolbar">
+                            <button @click="loadStorage()" class="btn" aria-label="Refresh storage">Refresh</button>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Filesystems</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Filesystem usage">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Filesystem</th>
+                                            <th role="columnheader">Size</th>
+                                            <th role="columnheader">Used</th>
+                                            <th role="columnheader">Available</th>
+                                            <th role="columnheader">Use%</th>
+                                            <th role="columnheader">Mounted on</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="fs in storageData" :key="fs.mountpoint">
+                                            <tr role="row">
+                                                <td role="cell" x-text="fs.filesystem"></td>
+                                                <td role="cell" x-text="fs.size"></td>
+                                                <td role="cell" x-text="fs.used"></td>
+                                                <td role="cell" x-text="fs.available"></td>
+                                                <td role="cell">
+                                                    <span class="badge"
+                                                          :class="fs.usePercent > 90 ? 'badge-error' : (fs.usePercent > 75 ? 'badge-warning' : 'badge-ok')"
+                                                          x-text="fs.usePercent + '%'"></span>
+                                                </td>
+                                                <td role="cell" x-text="fs.mountpoint"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="storageData.length === 0" class="empty-state">No storage data available.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ USERS ============ -->
+                    <section x-show="tab === 'users'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="users-heading">
+                        <h2 id="users-heading" class="section-title">Users</h2>
+
+                        <div class="toolbar">
+                            <div class="toolbar-group">
+                                <button @click="loadUsers()" class="btn" aria-label="Refresh users">Refresh</button>
+                                <button @click="showCreateUser = true" class="btn btn-primary" aria-label="Create user">Create User</button>
+                            </div>
+                        </div>
+
+                        <!-- Create user modal -->
+                        <div x-show="showCreateUser" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
+                            <div class="modal">
+                                <div class="modal-header">
+                                    <h3 id="create-user-title">Create User</h3>
+                                    <button @click="showCreateUser = false" class="modal-close" aria-label="Close dialog">&times;</button>
+                                </div>
+                                <form @submit.prevent="createUser()" class="modal-body">
+                                    <label for="new-username">Username</label>
+                                    <input id="new-username" type="text" x-model="newUser.username" required pattern="[a-z_][a-z0-9_-]*">
+
+                                    <label for="new-home">Home Directory</label>
+                                    <input id="new-home" type="text" x-model="newUser.home" placeholder="/home/username">
+
+                                    <label for="new-shell">Shell</label>
+                                    <input id="new-shell" type="text" x-model="newUser.shell" placeholder="/bin/ash">
+
+                                    <p class="error" x-show="userError" x-text="userError" role="alert"></p>
+
+                                    <div class="modal-actions">
+                                        <button type="button" @click="showCreateUser = false" class="btn btn-secondary">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Create</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="System users">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Username</th>
+                                            <th role="columnheader">UID</th>
+                                            <th role="columnheader">GID</th>
+                                            <th role="columnheader">Home</th>
+                                            <th role="columnheader">Shell</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="u in users" :key="u.username">
+                                            <tr role="row">
+                                                <td role="cell" x-text="u.username"></td>
+                                                <td role="cell" x-text="u.uid" class="mono"></td>
+                                                <td role="cell" x-text="u.gid" class="mono"></td>
+                                                <td role="cell" x-text="u.home" class="mono"></td>
+                                                <td role="cell" x-text="u.shell" class="mono"></td>
+                                                <td role="cell" class="actions-col">
+                                                    <button class="btn btn-sm"
+                                                            @click="resetPassword(u.username)"
+                                                            :disabled="u._loading"
+                                                            :aria-label="'Reset password for ' + u.username">Reset Password</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="users.length === 0" class="empty-state">No users found.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ LOGS ============ -->
+                    <section x-show="tab === 'logs'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="logs-heading">
+                        <h2 id="logs-heading" class="section-title">System Logs</h2>
+
+                        <div class="toolbar">
+                            <div class="toolbar-group">
+                                <button @click="toggleLogs()"
+                                        class="btn"
+                                        :class="{'btn-primary': logsRunning}"
+                                        :aria-label="logsRunning ? 'Pause log stream' : 'Resume log stream'"
+                                        x-text="logsRunning ? 'Pause' : 'Stream'"></button>
+                                <button @click="clearLogs()" class="btn btn-secondary" aria-label="Clear log display">Clear</button>
+                            </div>
+                            <div class="toolbar-group">
+                                <input type="search"
+                                       x-model="logFilter"
+                                       placeholder="Filter logs..."
+                                       class="search-input"
+                                       aria-label="Filter log lines">
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-body">
+                                <div class="log-container"
+                                     role="log"
+                                     aria-live="off"
+                                     aria-label="System log stream"
+                                     x-ref="logContainer">
+                                    <template x-for="line in filteredLogs()" :key="line.id">
+                                        <div class="log-line" :class="'log-' + line.level" x-text="line.text"></div>
+                                    </template>
+                                    <div x-show="logLines.length === 0" class="empty-state">No log data. Click Stream to start.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ SESSIONS ============ -->
+                    <section x-show="tab === 'sessions'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="sessions-heading">
+                        <h2 id="sessions-heading" class="section-title">Active Sessions</h2>
+
+                        <div class="toolbar">
+                            <button @click="loadSessions()" class="btn" aria-label="Refresh sessions">Refresh</button>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Active sessions">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Username</th>
+                                            <th role="columnheader">IP Address</th>
+                                            <th role="columnheader">User Agent</th>
+                                            <th role="columnheader">Created</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="s in sessions" :key="s.id">
+                                            <tr role="row" :class="{'row-highlight': s.isCurrent}">
+                                                <td role="cell">
+                                                    <span x-text="s.username"></span>
+                                                    <span x-show="s.isCurrent" class="badge badge-info">You</span>
+                                                </td>
+                                                <td role="cell" x-text="s.ip" class="mono"></td>
+                                                <td role="cell" x-text="s.user_agent" class="description-cell" :title="s.user_agent"></td>
+                                                <td role="cell" x-text="formatTime(s.created_at)"></td>
+                                                <td role="cell" class="actions-col">
+                                                    <button class="btn btn-sm btn-danger"
+                                                            @click="revokeSession(s.id)"
+                                                            :disabled="s.isCurrent"
+                                                            :aria-label="'Revoke session from ' + s.ip">Revoke</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="sessions.length === 0" class="empty-state">No active sessions.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ SYSTEM ============ -->
+                    <section x-show="tab === 'system'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="system-heading">
+                        <h2 id="system-heading" class="section-title">System</h2>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>System Information</h3></div>
+                            <div class="panel-body">
+                                <div class="info-grid">
+                                    <div class="info-row">
+                                        <span class="info-label">Hostname</span>
+                                        <span class="info-value" x-text="telemetry.hostname || '-'"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">OS</span>
+                                        <span class="info-value" x-text="telemetry.os || '-'"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">Kernel</span>
+                                        <span class="info-value" x-text="telemetry.kernel || '-'"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">CPU Cores</span>
+                                        <span class="info-value" x-text="telemetry.cpu_count || '-'"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">Version</span>
+                                        <span class="info-value" x-text="version || '-'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel panel-warning">
+                            <div class="panel-header"><h3>Power Control</h3></div>
+                            <div class="panel-body">
+                                <p class="panel-text">These actions will affect system availability. Use with caution.</p>
+                                <div class="btn-group">
+                                    <button @click="confirmReboot = true" class="btn btn-warning" aria-label="Reboot system">Reboot</button>
+                                    <button @click="confirmShutdown = true" class="btn btn-danger" aria-label="Shutdown system">Shutdown</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Reboot confirmation -->
+                        <div x-show="confirmReboot" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reboot-title">
+                            <div class="modal">
+                                <div class="modal-header">
+                                    <h3 id="reboot-title">Confirm Reboot</h3>
+                                    <button @click="confirmReboot = false" class="modal-close" aria-label="Close dialog">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Are you sure you want to reboot the system? All active connections will be interrupted.</p>
+                                    <div class="modal-actions">
+                                        <button @click="confirmReboot = false" class="btn btn-secondary">Cancel</button>
+                                        <button @click="powerAction('reboot')" class="btn btn-warning">Reboot</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Shutdown confirmation -->
+                        <div x-show="confirmShutdown" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shutdown-title">
+                            <div class="modal">
+                                <div class="modal-header">
+                                    <h3 id="shutdown-title">Confirm Shutdown</h3>
+                                    <button @click="confirmShutdown = false" class="modal-close" aria-label="Close dialog">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Are you sure you want to shut down the system? You will lose remote access.</p>
+                                    <div class="modal-actions">
+                                        <button @click="confirmShutdown = false" class="btn btn-secondary">Cancel</button>
+                                        <button @click="powerAction('shutdown')" class="btn btn-danger">Shutdown</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        </template>
+    </div>
+</body>
+</html>

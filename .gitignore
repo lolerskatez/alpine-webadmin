@@ -1,0 +1,20 @@
+# Binaries
+bin/
+dist/
+*.exe
+
+# Test artifacts
+*.test
+*.out
+coverage.txt
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,12 @@
+{
+  "listen": ":8080",
+  "ipc_socket": "/run/webadmin/ipc.sock",
+  "session_ttl": 3600,
+  "ws_max_conns": 10,
+  "rate_limit_rps": 20,
+  "allowed_helpers": [
+    "/sbin/rc-service",
+    "/sbin/rc-status",
+    "/sbin/apk"
+  ]
+}

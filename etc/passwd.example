@@ -1,0 +1,6 @@
+# Place bcrypt hash of admin password here.
+# Generate with:
+#   go run -e 'package main; import ("fmt"; "golang.org/x/crypto/bcrypt"); func main() { b, _ := bcrypt.GenerateFromPassword([]byte("changeme"), bcrypt.DefaultCost); fmt.Println(string(b)) }'
+#
+# Example (DO NOT USE IN PRODUCTION):
+# $2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
