@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/user"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -22,6 +24,27 @@ func Serve(socketPath string, expectedUID int, handler Handler) error {
 		return fmt.Errorf("ipc: listen %s: %w", socketPath, err)
 	}
 	defer l.Close()
+
+	// Set ownership to root:webadmin so the unprivileged webadmin process can connect.
+	// If the webadmin user/group doesn't resolve, fall back to expectedUID's primary group.
+	gid := -1
+	if g, err := user.LookupGroup("webadmin"); err == nil {
+		if n, err := strconv.Atoi(g.Gid); err == nil {
+			gid = n
+		}
+	}
+	if gid < 0 && expectedUID > 0 {
+		if u, err := user.LookupId(strconv.Itoa(expectedUID)); err == nil {
+			if n, err := strconv.Atoi(u.Gid); err == nil {
+				gid = n
+			}
+		}
+	}
+	if gid >= 0 {
+		if err := os.Chown(socketPath, 0, gid); err != nil {
+			return fmt.Errorf("ipc: chown socket: %w", err)
+		}
+	}
 
 	// Set permissions so only root and webadmin group can connect
 	if err := os.Chmod(socketPath, 0660); err != nil {
