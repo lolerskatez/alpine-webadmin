@@ -247,13 +247,13 @@ func roleAtLeast(have, want Role) bool {
 
 // ── Cookie Helpers ─────────────────────────────────
 
-// SetSessionCookie writes the __Host-SID cookie.
+// SetSessionCookie writes the session cookie.
 func SetSessionCookie(w http.ResponseWriter, sid string, ttl int) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "__Host-SID",
+		Name:     "webadmin-sid",
 		Value:    sid,
 		Path:     "/",
-		Secure:   true,
+		Secure:   false,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   ttl,
@@ -263,11 +263,11 @@ func SetSessionCookie(w http.ResponseWriter, sid string, ttl int) {
 // ClearSessionCookie invalidates the session cookie.
 func ClearSessionCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
-		Name:     "__Host-SID",
+		Name:     "webadmin-sid",
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
-		Secure:   true,
+		Secure:   false,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
 	})
@@ -275,7 +275,7 @@ func ClearSessionCookie(w http.ResponseWriter) {
 
 // SessionFromRequest extracts the SID from the cookie.
 func SessionFromRequest(r *http.Request) string {
-	c, err := r.Cookie("__Host-SID")
+	c, err := r.Cookie("webadmin-sid")
 	if err != nil {
 		return ""
 	}

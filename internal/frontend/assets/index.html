@@ -429,18 +429,20 @@
                             </div>
                         </div>
 
-                        <div x-show="pkgOp && (pkgOp.state === 'running' || pkgOp.state === 'pending')" class="panel panel-info">
-                            <div class="panel-header">
-                                <h3 x-text="'Operation: ' + pkgOp.type + ' (' + pkgOp.state + ')'"></h3>
-                            </div>
-                            <div class="panel-body">
-                                <div class="progress-log" role="log" aria-live="polite" aria-atomic="false">
-                                    <template x-for="line in pkgOp.progress" :key="line.ts">
-                                        <div class="log-line" x-text="line.line"></div>
-                                    </template>
+                        <template x-if="pkgOp && (pkgOp.state === 'running' || pkgOp.state === 'pending')">
+                            <div class="panel panel-info">
+                                <div class="panel-header">
+                                    <h3 x-text="'Operation: ' + pkgOp.type + ' (' + pkgOp.state + ')'"></h3>
+                                </div>
+                                <div class="panel-body">
+                                    <div class="progress-log" role="log" aria-live="polite" aria-atomic="false">
+                                        <template x-for="line in pkgOp.progress" :key="line.ts">
+                                            <div class="log-line" x-text="line.line"></div>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </template>
 
                         <div class="panel">
                             <div class="panel-body">

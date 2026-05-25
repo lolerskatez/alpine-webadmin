@@ -13,7 +13,7 @@ import (
 
 // ── CSRF ───────────────────────────────────────────
 
-const csrfCookieName = "__Host-CSRF"
+const csrfCookieName = "webadmin-csrf"
 const csrfHeaderName = "X-CSRF-Token"
 
 // GenerateCSRFToken returns a new random 32-byte hex token.
@@ -52,7 +52,7 @@ func SetCSRFCookie(w http.ResponseWriter, token string) {
 		Name:     csrfCookieName,
 		Value:    token,
 		Path:     "/",
-		Secure:   true,
+		Secure:   false,
 		HttpOnly: false, // must be readable by JS
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   86400,

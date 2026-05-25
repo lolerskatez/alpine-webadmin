@@ -134,7 +134,7 @@ function app() {
         },
 
         readCSRFCookie() {
-            const m = document.cookie.match(/__Host-CSRF=([^;]+)/);
+            const m = document.cookie.match(/webadmin-csrf=([^;]+)/);
             this.csrfToken = m ? m[1] : '';
         },
 
@@ -514,7 +514,7 @@ function app() {
                 if (!r.ok) return;
                 const data = await r.json();
                 // Identify current session via cookie (best effort)
-                const sidMatch = document.cookie.match(/__Host-SID=([^;]+)/);
+                const sidMatch = document.cookie.match(/webadmin-sid=([^;]+)/);
                 const currentSid = sidMatch ? sidMatch[1] : '';
                 this.sessions = (data || []).map(s => ({
                     ...s,

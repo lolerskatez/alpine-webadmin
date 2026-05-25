@@ -93,14 +93,14 @@ func TestSetCSRFCookie(t *testing.T) {
 		t.Fatalf("expected 1 cookie, got %d", len(cookies))
 	}
 	c := cookies[0]
-	if c.Name != "__Host-CSRF" {
-		t.Errorf("name = %q, want __Host-CSRF", c.Name)
+	if c.Name != "webadmin-csrf" {
+		t.Errorf("name = %q, want webadmin-csrf", c.Name)
 	}
 	if c.HttpOnly {
 		t.Error("CSRF cookie must NOT be HttpOnly (JS needs to read it)")
 	}
-	if !c.Secure {
-		t.Error("CSRF cookie should be Secure")
+	if c.Secure {
+		t.Error("CSRF cookie should not be Secure for HTTP compatibility")
 	}
 	if c.SameSite != http.SameSiteStrictMode {
 		t.Error("CSRF cookie should be SameSite=Strict")

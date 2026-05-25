@@ -178,7 +178,7 @@ func TestRequireAuthValid(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-SID", Value: sid})
+	req.AddCookie(&http.Cookie{Name: "webadmin-sid", Value: sid})
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -215,7 +215,7 @@ func TestRequireRoleAdmin(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest("POST", "/api/admin", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-SID", Value: sid})
+	req.AddCookie(&http.Cookie{Name: "webadmin-sid", Value: sid})
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -235,7 +235,7 @@ func TestRequireRoleForbidden(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest("POST", "/api/admin", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-SID", Value: sid})
+	req.AddCookie(&http.Cookie{Name: "webadmin-sid", Value: sid})
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
@@ -282,11 +282,11 @@ func TestSetSessionCookie(t *testing.T) {
 		t.Fatalf("expected 1 cookie, got %d", len(cookies))
 	}
 	c := cookies[0]
-	if c.Name != "__Host-SID" {
-		t.Errorf("name = %q, want __Host-SID", c.Name)
+	if c.Name != "webadmin-sid" {
+		t.Errorf("name = %q, want webadmin-sid", c.Name)
 	}
-	if !c.Secure {
-		t.Error("cookie should be Secure")
+	if c.Secure {
+		t.Error("cookie should not be Secure for HTTP compatibility")
 	}
 	if !c.HttpOnly {
 		t.Error("cookie should be HttpOnly")
@@ -317,7 +317,7 @@ func TestClearSessionCookie(t *testing.T) {
 func TestSessionFromRequest(t *testing.T) {
 	checkGoroutines(t)
 	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "__Host-SID", Value: "abc123"})
+	req.AddCookie(&http.Cookie{Name: "webadmin-sid", Value: "abc123"})
 	if sid := SessionFromRequest(req); sid != "abc123" {
 		t.Errorf("SID = %q, want abc123", sid)
 	}
