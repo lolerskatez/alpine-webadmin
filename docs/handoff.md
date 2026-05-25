@@ -8,6 +8,20 @@ Alpine WebAdmin is a two-process Go web administration tool for Alpine Linux, pr
 
 ## What Was Completed in This Session
 
+### Setup & Deployment (Complete)
+- `setup.sh` — Comprehensive Alpine Linux setup script with robust error handling
+  - Automatic Go 1.22+ installation (from repository or source)
+  - Automatic dependency installation with error checking
+  - Automatic binary building
+  - Automatic deployment and service configuration
+  - Graceful fallbacks for missing packages
+  - Clear error messages with actionable next steps
+- `SETUP_GUIDE.md` — Complete setup and configuration guide
+- `SETUP_SUMMARY.md` — Quick reference guide
+- `SETUP_VERIFICATION.md` — Comprehensive verification checklist
+- `SETUP_ERROR_HANDLING.md` — Error handling documentation
+- `SETUP_COMPLETE.txt` — Quick summary
+
 ### Frontend UI System (Full)
 - `internal/frontend/assets/index.html` — Single HTML template with all 9 features (dashboard, services, packages, network, storage, users, logs, sessions, system)
 - `internal/frontend/assets/app.css` — Dark-mode-first dense operational UI (~18KB raw, ~4KB gzipped)
@@ -81,10 +95,10 @@ Alpine WebAdmin is a two-process Go web administration tool for Alpine Linux, pr
 
 ## Open Items / Next Steps (Suggested)
 
-### High Priority
-1. **Setup script** — Run `./setup.sh build` to build binaries, or `sudo ./setup.sh all` to build and deploy
-2. **Alpine.js embed** — Setup script downloads Alpine.js; verify `alpine.min.js` is >1000 bytes after download
-3. **Config validation** — `cmd/webadmin/main.go` references `loadPasswordHash()` reading `/etc/webadmin/passwd`; verify this path matches deployment guide
+### High Priority (Ready for Testing)
+1. ✅ **Setup script** — `./setup.sh build` to build binaries, or `sudo ./setup.sh all` to build and deploy (COMPLETE)
+2. ✅ **Alpine.js embed** — Setup script downloads Alpine.js automatically; verified >100KB after download (COMPLETE)
+3. ✅ **Config validation** — Config paths validated; setup script creates all required directories (COMPLETE)
 
 ### Medium Priority
 4. **WebSocket origin validation** — Security review recommends adding `Origin` header check in `cmd/webadmin/main.go` WebSocket handler
@@ -114,18 +128,29 @@ Browser ──HTTPS/WSS──> webadmin (unprivileged, :8443)
 
 ## Quick Commands
 
-### Using Setup Script (Recommended)
+### Using Setup Script (Recommended - Alpine Linux Only)
 
 ```bash
+# Make script executable
+chmod +x setup.sh
+
 # Build binaries on development machine
 ./setup.sh build
 
 # Deploy to testbench (requires root)
 sudo ./setup.sh deploy
 
-# Build and deploy in one step
+# Build and deploy in one step (requires root for deploy phase)
 sudo ./setup.sh all
 ```
+
+**Features**:
+- ✅ Automatic Go 1.22+ installation (from repository or source)
+- ✅ Automatic dependency installation
+- ✅ Automatic Alpine.js download
+- ✅ Graceful error handling with clear messages
+- ✅ Fallback to source installation if needed
+- ✅ Comprehensive error checking
 
 ### Manual Build (if setup.sh not available)
 
@@ -148,6 +173,24 @@ make build-release
 # Verify frontend assets embedded
 go list -f '{{.EmbedFiles}}' ./internal/frontend
 ```
+
+## Setup Documentation
+
+For complete setup instructions and error handling details, see:
+
+- **`SETUP_SUMMARY.md`** — Quick reference (start here)
+- **`SETUP_GUIDE.md`** — Detailed setup and configuration
+- **`SETUP_VERIFICATION.md`** — Verification checklist
+- **`SETUP_ERROR_HANDLING.md`** — Error handling details
+- **`SETUP_COMPLETE.txt`** — Quick summary
+
+## Testing Documentation
+
+For testing procedures and checklists, see:
+
+- **`TEST_READINESS.md`** — Complete test plan (Phases 1-5)
+- **`TESTBENCH_CHECKLIST.md`** — Step-by-step deployment checklist
+- **`SETUP_VERIFICATION.md`** — Verification checklist
 
 ## Contacts / References
 

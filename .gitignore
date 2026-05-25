@@ -1,20 +1,231 @@
-# Binaries
+# ============================================================================
+# Build Artifacts
+# ============================================================================
+
 bin/
 dist/
+build/
 *.exe
+*.exe~
+*.dll
+*.so
+*.so.*
+*.dylib
 
-# Test artifacts
+# ============================================================================
+# Go
+# ============================================================================
+
+# Binaries for programs and plugins
+*.o
+*.a
+*.so
+
+# Test binary, built with `go test -c`
 *.test
+
+# Output of the go coverage tool
 *.out
 coverage.txt
+coverage.html
 
-# Editor
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# ============================================================================
+# Frontend Assets
+# ============================================================================
+
+# Alpine.js (downloaded, not committed)
+internal/frontend/assets/alpine.min.js
+
+# Node modules (if using npm)
+node_modules/
+package-lock.json
+yarn.lock
+
+# ============================================================================
+# IDE & Editor
+# ============================================================================
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Vim
 *.swp
 *.swo
 *~
-.idea/
-.vscode/
+.vim/
 
-# OS
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Nano
+.nano_history
+
+# ============================================================================
+# OS & System Files
+# ============================================================================
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+.directory
+
+# ============================================================================
+# Development & Testing
+# ============================================================================
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Test coverage
+*.coverprofile
+*.coverage
+
+# Profiling
+*.pprof
+*.prof
+
+# ============================================================================
+# Configuration & Secrets
+# ============================================================================
+
+# Local configuration (should not be committed)
+.env
+.env.local
+.env.*.local
+
+# TLS certificates and keys (development only)
+*.pem
+*.key
+*.crt
+*.cert
+
+# Password files
+/etc/webadmin/passwd
+/etc/webadmin/config.json
+
+# ============================================================================
+# Logs & Runtime
+# ============================================================================
+
+# Log files
+*.log
+logs/
+/var/log/webadmin/
+
+# Runtime files
+*.pid
+/run/webadmin/
+
+# Temporary directories
+/tmp/
+/temp/
+
+# ============================================================================
+# VirtualBox & VM
+# ============================================================================
+
+# VirtualBox
+*.vbox
+*.vbox-prev
+*.vdi
+*.vmdk
+*.vhd
+.vagrant/
+vagrant.log
+
+# ============================================================================
+# Docker (if used)
+# ============================================================================
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# ============================================================================
+# IDE Generated Files
+# ============================================================================
+
+# GoLand / IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Sublime
+*.sublime-project
+*.sublime-workspace
+
+# ============================================================================
+# Project Specific
+# ============================================================================
+
+# Build outputs
+/bin/
+/dist/
+
+# Test outputs
+test-results/
+test-coverage/
+
+# Local development
+/tmp/
+/temp/
+local/
+
+# ============================================================================
+# Misc
+# ============================================================================
+
+# Backup files
+*.bak
+*.backup
+*.swp
+*~
+
+# Compiled Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore all local history of files
+.history
+.history/
