@@ -80,8 +80,8 @@ Alpine WebAdmin is a two-process Go web administration tool for Alpine Linux, pr
 ## Open Items / Next Steps (Suggested)
 
 ### High Priority
-1. **Real build + test** — Run `make deps && make build && make test` to verify everything compiles
-2. **Alpine.js embed** — `make deps` downloads Alpine.js; verify `alpine.min.js` is >1000 bytes after download
+1. **Setup script** — Run `./setup.sh build` to build binaries, or `sudo ./setup.sh all` to build and deploy
+2. **Alpine.js embed** — Setup script downloads Alpine.js; verify `alpine.min.js` is >1000 bytes after download
 3. **Config validation** — `cmd/webadmin/main.go` references `loadPasswordHash()` reading `/etc/webadmin/passwd`; verify this path matches deployment guide
 
 ### Medium Priority
@@ -112,9 +112,27 @@ Browser ──HTTPS/WSS──> webadmin (unprivileged, :8443)
 
 ## Quick Commands
 
+### Using Setup Script (Recommended)
+
 ```bash
+# Build binaries on development machine
+./setup.sh build
+
+# Deploy to testbench (requires root)
+sudo ./setup.sh deploy
+
+# Build and deploy in one step
+sudo ./setup.sh all
+```
+
+### Manual Build (if setup.sh not available)
+
+```bash
+# Download dependencies
+make deps
+
 # Build everything
-make deps && make build
+make build
 
 # Run tests (skip stress tests)
 go test ./... -short
