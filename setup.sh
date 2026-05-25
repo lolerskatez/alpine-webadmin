@@ -434,18 +434,38 @@ check_binaries_exist() {
 }
 
 create_system_user() {
-    log_info "Creating system user..."
+    log_info "Creating system user and group..."
     
+    # Create group first
+    if getent group "$WEBADMIN_GROUP" >/dev/null 2>&1; then
+        log_warn "Group $WEBADMIN_GROUP already exists"
+    else
+        addgroup -S "$WEBADMIN_GROUP"
+        log_success "Group $WEBADMIN_GROUP created"
+    fi
+    
+    # Create user with group
     if id "$WEBADMIN_USER" >/dev/null 2>&1; then
         log_warn "User $WEBADMIN_USER already exists"
+        # Ensure user is in the group
+        if ! id -nG "$WEBADMIN_USER" | grep -qw "$WEBADMIN_GROUP"; then
+            adduser "$WEBADMIN_USER" "$WEBADMIN_GROUP" 2>/dev/null || true
+        fi
     else
-        adduser -S -D -H -s /sbin/nologin "$WEBADMIN_USER"
+        adduser -S -D -H -s /sbin/nologin -G "$WEBADMIN_GROUP" "$WEBADMIN_USER"
         log_success "User $WEBADMIN_USER created"
     fi
 }
 
 create_directories() {
     log_info "Creating directories..."
+    
+    # Verify group exists before chown
+    if ! getent group "$WEBADMIN_GROUP" >/dev/null 2>&1; then
+        log_error "Group $WEBADMIN_GROUP does not exist"
+        log_error "Run create_system_user first"
+        exit 1
+    fi
     
     for dir in "$CONFIG_DIR" "$RUN_DIR" "$LOG_DIR"; do
         if [ ! -d "$dir" ]; then
@@ -454,12 +474,8 @@ create_directories() {
         fi
     done
     
-    chmod 750 "$CONFIG_DIR"
-    chmod 750 "$RUN_DIR"
-    chmod 750 "$LOG_DIR"
-    chown root:"$WEBADMIN_GROUP" "$CONFIG_DIR"
-    chown root:"$WEBADMIN_GROUP" "$RUN_DIR"
-    chown root:"$WEBADMIN_GROUP" "$LOG_DIR"
+    chmod 750 "$CONFIG_DIR" "$RUN_DIR" "$LOG_DIR"
+    chown "root:$WEBADMIN_GROUP" "$CONFIG_DIR" "$RUN_DIR" "$LOG_DIR"
     
     log_success "Directories configured"
 }

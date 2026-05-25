@@ -313,7 +313,7 @@ func TestValidators(t *testing.T) {
 		},
 		{
 			name:    "openrc injection",
-			content: "command=\`/bin/rm -rf /\`\n",
+			content: "command=`/bin/rm -rf /`\n",
 			fn:      ValidateOpenRC,
 			wantErr: true,
 		},
