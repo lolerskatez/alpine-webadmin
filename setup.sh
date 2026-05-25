@@ -100,15 +100,31 @@ check_go_version() {
 
 install_go() {
     log_info "Installing Go $GO_VERSION..."
-    
+
     if ! command_exists apk; then
         log_error "apk not found. This script requires Alpine Linux."
         exit 1
     fi
-    
+
+    # Skip apk if Go is already installed and meets version
+    if command_exists go && check_go_version; then
+        log_success "Go $(go version | awk '{print $3}') already installed"
+        return 0
+    fi
+
+    # Only hit apk if go package is not already installed
+    if apk info -e go >/dev/null 2>&1; then
+        if check_go_version; then
+            log_success "Go already installed from apk"
+            return 0
+        else
+            log_warn "Repository Go is older than $GO_VERSION"
+        fi
+    fi
+
     # Try to install from apk repository
     log_info "Attempting to install Go from Alpine repository..."
-    if apk add --no-cache go 2>/dev/null; then
+    if apk add --no-cache go; then
         if check_go_version; then
             log_success "Go installed from Alpine repository"
             return 0
@@ -118,7 +134,7 @@ install_go() {
     else
         log_warn "Go not available in Alpine repository (or installation failed)"
     fi
-    
+
     # Fall back to source installation
     log_info "Falling back to source installation from go.dev..."
     install_go_from_source
@@ -198,19 +214,25 @@ install_go_from_source() {
 }
 
 install_build_dependencies() {
-    log_info "Installing build dependencies..."
+    log_info "Checking build dependencies..."
 
-    # Check network connectivity first
-    if ! curl -fsSL --max-time 10 https://dl-cdn.alpinelinux.org/alpine/MIRRORS.txt >/dev/null 2>&1; then
-        log_error "No internet connectivity to Alpine mirror"
-        log_error "Please check network settings and DNS resolution"
-        exit 1
+    local pkgs="build-base git curl wget pkgconfig"
+    local missing=""
+
+    for pkg in $pkgs; do
+        if ! apk info -e "$pkg" >/dev/null 2>&1; then
+            missing="$missing $pkg"
+        fi
+    done
+
+    if [ -z "$missing" ]; then
+        log_success "All build dependencies already installed"
+        return 0
     fi
 
-    # Clear any stale apk cache
-    rm -rf /var/cache/apk/*
+    log_info "Missing packages:$missing"
 
-    # Update package index (show output so user can see progress)
+    # Update package index only when we have missing packages
     log_info "Updating package index..."
     if ! apk update; then
         log_error "Failed to update package index"
@@ -218,14 +240,9 @@ install_build_dependencies() {
         exit 1
     fi
 
-    # Install dependencies (show output)
-    log_info "Installing packages..."
-    if ! apk add --no-cache \
-        build-base \
-        git \
-        curl \
-        wget \
-        pkgconfig; then
+    # Install only missing packages
+    log_info "Installing missing packages..."
+    if ! apk add --no-cache $missing; then
         log_error "Failed to install build dependencies"
         log_error "Please check your internet connection and try again"
         exit 1
