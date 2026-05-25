@@ -109,7 +109,9 @@ function app() {
                     this.authenticated = true;
                     this.password = '';
                     this.readCSRFCookie();
-                    this.initWS();
+                    // Defer WS open one tick so the browser commits Set-Cookie
+                    // before the WebSocket upgrade request is sent.
+                    setTimeout(() => this.initWS(), 0);
                     this.loadTabData();
                 } else {
                     this.loginError = r.status === 429 ? 'Rate limited. Try again later.' : 'Invalid password';
