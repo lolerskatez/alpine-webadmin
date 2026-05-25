@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"io"
 	"net"
 	"sync"
 	"time"
