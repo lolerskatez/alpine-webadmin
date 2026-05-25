@@ -7,10 +7,11 @@ type Snapshot struct {
 	Memory      MemStats     `json:"memory"`
 	Load        LoadStats    `json:"load"`
 	Disks       []DiskStats  `json:"disks,omitempty"`
-	Net         []NetStats   `json:"net,omitempty"`
+	Net         []NetStats   `json:"network,omitempty"`
 	Mounts      []MountStats `json:"mounts,omitempty"`
 	UptimeSec   int64        `json:"uptime_sec"`
 	TempC       *float64     `json:"temp_c,omitempty"`
+	Hostname    string       `json:"hostname"`
 }
 
 type CPUStats struct {
@@ -41,7 +42,7 @@ type DiskStats struct {
 }
 
 type NetStats struct {
-	Interface string `json:"iface"`
+	Interface string `json:"interface"`
 	RxBytes   uint64 `json:"rx_bytes"`
 	TxBytes   uint64 `json:"tx_bytes"`
 	RxPackets uint64 `json:"rx_packets"`

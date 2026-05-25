@@ -32,18 +32,21 @@ func Upgrade(w http.ResponseWriter, r *http.Request) (*Conn, error) {
 		return nil, fmt.Errorf("ws: response writer does not support hijacking")
 	}
 
-	// Write handshake response before hijack
 	accept := computeAccept(key)
-	w.Header().Set("Upgrade", "websocket")
-	w.Header().Set("Connection", "Upgrade")
-	w.Header().Set("Sec-WebSocket-Accept", accept)
-	w.WriteHeader(http.StatusSwitchingProtocols)
 
 	// Hijack
 	nc, bufrw, err := hijacker.Hijack()
 	if err != nil {
 		return nil, fmt.Errorf("ws: hijack failed: %w", err)
 	}
+
+	// Write handshake response manually — ResponseWriter headers are lost after hijack
+	_, _ = fmt.Fprintf(bufrw.Writer, "HTTP/1.1 101 Switching Protocols\r\n")
+	_, _ = fmt.Fprintf(bufrw.Writer, "Upgrade: websocket\r\n")
+	_, _ = fmt.Fprintf(bufrw.Writer, "Connection: Upgrade\r\n")
+	_, _ = fmt.Fprintf(bufrw.Writer, "Sec-WebSocket-Accept: %s\r\n", accept)
+	_, _ = fmt.Fprintf(bufrw.Writer, "\r\n")
+
 	if err := bufrw.Flush(); err != nil {
 		nc.Close()
 		return nil, fmt.Errorf("ws: flush failed: %w", err)

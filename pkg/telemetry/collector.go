@@ -84,6 +84,7 @@ func (c *Collector) buildSnapshot() *Snapshot {
 	now := time.Now().Unix()
 	var snap Snapshot
 	snap.Timestamp = now
+	snap.Hostname, _ = os.Hostname()
 
 	// CPU — resilient: continue with partial data
 	if statF, err := os.Open("/proc/stat"); err == nil {
