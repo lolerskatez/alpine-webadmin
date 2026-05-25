@@ -168,6 +168,42 @@ func (s *Store) Count() int {
 	return len(s.sessions)
 }
 
+// CountByUser returns the number of active sessions for a specific username.
+func (s *Store) CountByUser(username string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now()
+	count := 0
+	for _, sess := range s.sessions {
+		if sess.Username == username && now.Before(sess.Expires) {
+			count++
+		}
+	}
+	return count
+}
+
+// CreateWithLimit generates a session but rejects if user already has maxSessions active.
+func (s *Store) CreateWithLimit(username string, role Role, maxSessions int) (string, error) {
+	if maxSessions > 0 && s.CountByUser(username) >= maxSessions {
+		return "", fmt.Errorf("maximum concurrent sessions reached for user %s", username)
+	}
+	return s.Create(username, role)
+}
+
+// RevokeAllForUser deletes all sessions belonging to a username.
+func (s *Store) RevokeAllForUser(username string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	removed := 0
+	for sid, sess := range s.sessions {
+		if sess.Username == username {
+			delete(s.sessions, sid)
+			removed++
+		}
+	}
+	return removed
+}
+
 // RequireAuth returns middleware that enforces session authentication.
 func RequireAuth(store *Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {

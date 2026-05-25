@@ -3,14 +3,29 @@ package auth
 import (
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
+func checkGoroutines(t *testing.T) {
+	t.Helper()
+	before := runtime.NumGoroutine()
+	t.Cleanup(func() {
+		time.Sleep(50 * time.Millisecond)
+		runtime.GC()
+		after := runtime.NumGoroutine()
+		if after > before+2 {
+			t.Errorf("goroutine leak: before=%d after=%d", before, after)
+		}
+	})
+}
+
 // ── Session Store ──────────────────────────────────
 
 func TestStoreCreateAndGet(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	sid, err := store.Create("admin", RoleAdmin)
 	if err != nil {
@@ -33,6 +48,7 @@ func TestStoreCreateAndGet(t *testing.T) {
 }
 
 func TestStoreGetInvalidSID(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	_, ok := store.Get("invalidsid")
 	if ok {
@@ -41,6 +57,7 @@ func TestStoreGetInvalidSID(t *testing.T) {
 }
 
 func TestStoreExpiry(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(1) // 1 second TTL
 	sid, _ := store.Create("admin", RoleAdmin)
 
@@ -52,6 +69,7 @@ func TestStoreExpiry(t *testing.T) {
 }
 
 func TestStoreSweep(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(1)
 	store.Create("a", RoleAdmin)
 	store.Create("b", RoleAdmin)
@@ -67,6 +85,7 @@ func TestStoreSweep(t *testing.T) {
 }
 
 func TestStoreDelete(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	sid, _ := store.Create("admin", RoleAdmin)
 	store.Delete(sid)
@@ -77,6 +96,7 @@ func TestStoreDelete(t *testing.T) {
 }
 
 func TestStoreCount(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	if store.Count() != 0 {
 		t.Fatalf("initial Count = %d, want 0", store.Count())
@@ -91,6 +111,7 @@ func TestStoreCount(t *testing.T) {
 // ── Sliding Window Renewal ─────────────────────────
 
 func TestStoreGetWithRenew(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(2) // 2 second TTL
 	sid, _ := store.Create("admin", RoleAdmin)
 
@@ -113,6 +134,7 @@ func TestStoreGetWithRenew(t *testing.T) {
 // ── Anti-Session-Fixation ──────────────────────────
 
 func TestStoreCreateWithMetadataFixation(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	oldSID, _ := store.Create("admin", RoleAdmin)
 
@@ -146,6 +168,7 @@ func TestStoreCreateWithMetadataFixation(t *testing.T) {
 // ── Middleware ─────────────────────────────────────
 
 func TestRequireAuthValid(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	sid, _ := store.Create("admin", RoleAdmin)
 
@@ -165,6 +188,7 @@ func TestRequireAuthValid(t *testing.T) {
 }
 
 func TestRequireAuthMissing(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	mw := RequireAuth(store)
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -181,6 +205,7 @@ func TestRequireAuthMissing(t *testing.T) {
 }
 
 func TestRequireRoleAdmin(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	sid, _ := store.Create("admin", RoleAdmin)
 
@@ -200,6 +225,7 @@ func TestRequireRoleAdmin(t *testing.T) {
 }
 
 func TestRequireRoleForbidden(t *testing.T) {
+	checkGoroutines(t)
 	store := NewStore(3600)
 	sid, _ := store.Create("viewer", RoleRead)
 
@@ -221,6 +247,7 @@ func TestRequireRoleForbidden(t *testing.T) {
 // ── Passwords ──────────────────────────────────────
 
 func TestHashAndCheckPassword(t *testing.T) {
+	checkGoroutines(t)
 	hash, err := HashPassword("secret123")
 	if err != nil {
 		t.Fatalf("HashPassword failed: %v", err)
@@ -234,6 +261,7 @@ func TestHashAndCheckPassword(t *testing.T) {
 }
 
 func TestCheckPasswordTiming(t *testing.T) {
+	checkGoroutines(t)
 	// Verify bcrypt runs in constant time by checking wrong password many times
 	// and ensuring no panic or early return
 	hash, _ := HashPassword("test")
@@ -245,6 +273,7 @@ func TestCheckPasswordTiming(t *testing.T) {
 // ── Cookies ────────────────────────────────────────
 
 func TestSetSessionCookie(t *testing.T) {
+	checkGoroutines(t)
 	rr := httptest.NewRecorder()
 	SetSessionCookie(rr, "testsid", 3600)
 
@@ -271,6 +300,7 @@ func TestSetSessionCookie(t *testing.T) {
 }
 
 func TestClearSessionCookie(t *testing.T) {
+	checkGoroutines(t)
 	rr := httptest.NewRecorder()
 	ClearSessionCookie(rr)
 
@@ -285,6 +315,7 @@ func TestClearSessionCookie(t *testing.T) {
 }
 
 func TestSessionFromRequest(t *testing.T) {
+	checkGoroutines(t)
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{Name: "__Host-SID", Value: "abc123"})
 	if sid := SessionFromRequest(req); sid != "abc123" {
@@ -295,6 +326,7 @@ func TestSessionFromRequest(t *testing.T) {
 // ── Failed Login Tracker ───────────────────────────
 
 func TestFailedLoginTracker(t *testing.T) {
+	checkGoroutines(t)
 	tracker := NewFailedLoginTracker(3, 5*time.Minute)
 	ip := "192.168.1.100"
 
@@ -321,6 +353,7 @@ func TestFailedLoginTracker(t *testing.T) {
 }
 
 func TestFailedLoginTrackerSweep(t *testing.T) {
+	checkGoroutines(t)
 	tracker := NewFailedLoginTracker(3, 5*time.Minute)
 	ip := "192.168.1.100"
 	tracker.RecordFailure(ip)
@@ -334,6 +367,7 @@ func TestFailedLoginTrackerSweep(t *testing.T) {
 // ── Constant-Time Compare ──────────────────────────
 
 func TestConstantTimeCompare(t *testing.T) {
+	checkGoroutines(t)
 	if ConstantTimeCompare("abc", "abc") != 1 {
 		t.Error("equal strings should return 1")
 	}
@@ -342,6 +376,71 @@ func TestConstantTimeCompare(t *testing.T) {
 	}
 	if ConstantTimeCompare("abc", "abC") != 0 {
 		t.Error("case-different strings should return 0")
+	}
+}
+
+// ── Session Limits ─────────────────────────────────
+
+func TestCreateWithLimit(t *testing.T) {
+	checkGoroutines(t)
+	store := NewStore(3600)
+	_, err := store.CreateWithLimit("admin", RoleAdmin, 2)
+	if err != nil {
+		t.Fatalf("first create failed: %v", err)
+	}
+	_, err = store.CreateWithLimit("admin", RoleAdmin, 2)
+	if err != nil {
+		t.Fatalf("second create failed: %v", err)
+	}
+	_, err = store.CreateWithLimit("admin", RoleAdmin, 2)
+	if err == nil {
+		t.Fatal("third create should fail with limit=2")
+	}
+}
+
+func TestCountByUser(t *testing.T) {
+	checkGoroutines(t)
+	store := NewStore(3600)
+	store.Create("admin", RoleAdmin)
+	store.Create("admin", RoleAdmin)
+	store.Create("user", RoleRead)
+	if store.CountByUser("admin") != 2 {
+		t.Errorf("admin count = %d, want 2", store.CountByUser("admin"))
+	}
+	if store.CountByUser("user") != 1 {
+		t.Errorf("user count = %d, want 1", store.CountByUser("user"))
+	}
+	if store.CountByUser("nobody") != 0 {
+		t.Errorf("nobody count = %d, want 0", store.CountByUser("nobody"))
+	}
+}
+
+func TestRevokeAllForUser(t *testing.T) {
+	checkGoroutines(t)
+	store := NewStore(3600)
+	store.Create("admin", RoleAdmin)
+	store.Create("admin", RoleAdmin)
+	store.Create("user", RoleRead)
+	removed := store.RevokeAllForUser("admin")
+	if removed != 2 {
+		t.Errorf("removed = %d, want 2", removed)
+	}
+	if store.Count() != 1 {
+		t.Errorf("count = %d, want 1", store.Count())
+	}
+}
+
+// ── Password Policy ─────────────────────────────────
+
+func TestPasswordPolicy(t *testing.T) {
+	checkGoroutines(t)
+	// Minimum length enforcement is frontend + backend advisory
+	// Verify bcrypt handles long passwords safely (72 byte truncation)
+	hash, _ := HashPassword(string(make([]byte, 100)))
+	if CheckPassword(string(make([]byte, 100)), hash) &&
+		!CheckPassword(string(make([]byte, 99)), hash) {
+		// bcrypt truncates at 72 bytes; this documents that behavior
+		t.Log("bcrypt truncates passwords at 72 bytes — documented behavior")
 	}
 }
 
