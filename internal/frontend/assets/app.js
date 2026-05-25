@@ -178,7 +178,9 @@ function app() {
             const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             this.ws = new WebSocket(`${proto}//${location.host}/ws`);
             this.ws.onmessage = (ev) => this.handleWSMessage(ev);
-            this.ws.onerror = () => this.ws.close();
+            this.ws.onerror = () => {
+                if (this.ws) this.ws.close();
+            };
             this.ws.onclose = () => {
                 this.ws = null;
                 if (this.authenticated) {
