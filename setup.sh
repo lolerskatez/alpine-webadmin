@@ -199,26 +199,38 @@ install_go_from_source() {
 
 install_build_dependencies() {
     log_info "Installing build dependencies..."
-    
-    # Update package index first
-    if ! apk update 2>/dev/null; then
+
+    # Check network connectivity first
+    if ! curl -fsSL --max-time 10 https://dl-cdn.alpinelinux.org/alpine/MIRRORS.txt >/dev/null 2>&1; then
+        log_error "No internet connectivity to Alpine mirror"
+        log_error "Please check network settings and DNS resolution"
+        exit 1
+    fi
+
+    # Clear any stale apk cache
+    rm -rf /var/cache/apk/*
+
+    # Update package index (show output so user can see progress)
+    log_info "Updating package index..."
+    if ! apk update; then
         log_error "Failed to update package index"
         log_error "Please check your internet connection"
         exit 1
     fi
-    
-    # Install dependencies
+
+    # Install dependencies (show output)
+    log_info "Installing packages..."
     if ! apk add --no-cache \
         build-base \
         git \
         curl \
         wget \
-        pkgconfig 2>/dev/null; then
+        pkgconfig; then
         log_error "Failed to install build dependencies"
         log_error "Please check your internet connection and try again"
         exit 1
     fi
-    
+
     log_success "Build dependencies installed"
 }
 
