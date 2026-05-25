@@ -298,20 +298,42 @@ build_binaries() {
     
     cd "$SCRIPT_DIR"
     
+    # Ensure dependencies are properly set up
+    log_info "Tidying Go modules..."
+    if ! go mod tidy 2>/dev/null; then
+        log_error "Failed to tidy Go modules"
+        exit 1
+    fi
+    
+    log_info "Downloading Go dependencies..."
+    if ! go mod download 2>/dev/null; then
+        log_error "Failed to download Go dependencies"
+        log_error "Please check your internet connection"
+        exit 1
+    fi
+    
     export CGO_ENABLED=0
     
     log_info "Building webadmin..."
-    go build -o bin/webadmin ./cmd/webadmin
+    if ! go build -o bin/webadmin ./cmd/webadmin 2>&1; then
+        log_error "Failed to build webadmin"
+        log_error "Check the error messages above"
+        exit 1
+    fi
     
     log_info "Building roothelper..."
-    go build -o bin/roothelper ./cmd/roothelper
+    if ! go build -o bin/roothelper ./cmd/roothelper 2>&1; then
+        log_error "Failed to build roothelper"
+        log_error "Check the error messages above"
+        exit 1
+    fi
     
     if [ -f "bin/webadmin" ] && [ -f "bin/roothelper" ]; then
         log_success "Build successful"
         log_info "Binaries:"
         ls -lh bin/webadmin bin/roothelper
     else
-        log_error "Build failed"
+        log_error "Build failed - binaries not found"
         exit 1
     fi
 }
