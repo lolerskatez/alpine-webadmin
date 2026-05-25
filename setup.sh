@@ -293,6 +293,47 @@ download_alpine_js() {
     fi
 }
 
+install_goimports() {
+    if command_exists goimports; then
+        return 0
+    fi
+    
+    log_info "Installing goimports for automatic import cleanup..."
+    if ! go install golang.org/x/tools/cmd/goimports@latest 2>/dev/null; then
+        log_warn "Failed to install goimports (will skip auto-fix)"
+        return 1
+    fi
+    
+    # Add GOPATH/bin to PATH if needed
+    local gopath_bin
+    gopath_bin="$(go env GOPATH)/bin"
+    if [ -d "$gopath_bin" ] && ! echo "$PATH" | grep -q "$gopath_bin"; then
+        export PATH="$PATH:$gopath_bin"
+    fi
+    
+    if command_exists goimports; then
+        log_success "goimports installed"
+        return 0
+    fi
+    return 1
+}
+
+fix_imports() {
+    log_info "Auto-fixing imports with goimports..."
+    
+    if ! command_exists goimports; then
+        log_warn "goimports not available, skipping auto-fix"
+        return 0
+    fi
+    
+    # Run goimports on all Go files (excludes vendor/ and .git/)
+    if goimports -w cmd/ pkg/ internal/ 2>/dev/null; then
+        log_success "Imports cleaned up"
+    else
+        log_warn "goimports encountered issues (continuing anyway)"
+    fi
+}
+
 build_binaries() {
     log_info "Building Alpine WebAdmin binaries..."
     
@@ -312,12 +353,31 @@ build_binaries() {
         exit 1
     fi
     
+    # Install and run goimports to auto-fix unused imports
+    install_goimports
+    fix_imports
+    
+    # Format code
+    log_info "Formatting code..."
+    gofmt -w cmd/ pkg/ internal/ 2>/dev/null || true
+    
+    # Run go vet to catch any remaining issues early
+    log_info "Running go vet..."
+    if ! go vet ./... 2>&1; then
+        log_warn "go vet found issues (continuing with build)"
+    fi
+    
     export CGO_ENABLED=0
     
     log_info "Building webadmin..."
     if ! go build -o bin/webadmin ./cmd/webadmin 2>&1; then
         log_error "Failed to build webadmin"
         log_error "Check the error messages above"
+        log_error ""
+        log_error "Common fixes:"
+        log_error "  1. Run: go mod tidy"
+        log_error "  2. Run: gofmt -w ."
+        log_error "  3. Check error messages above for unused imports or syntax errors"
         exit 1
     fi
     
@@ -325,6 +385,11 @@ build_binaries() {
     if ! go build -o bin/roothelper ./cmd/roothelper 2>&1; then
         log_error "Failed to build roothelper"
         log_error "Check the error messages above"
+        log_error ""
+        log_error "Common fixes:"
+        log_error "  1. Run: go mod tidy"
+        log_error "  2. Run: gofmt -w ."
+        log_error "  3. Check error messages above for unused imports or syntax errors"
         exit 1
     fi
     
