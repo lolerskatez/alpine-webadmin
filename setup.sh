@@ -101,17 +101,27 @@ check_go_version() {
 install_go() {
     log_info "Installing Go $GO_VERSION..."
     
-    if command_exists apk; then
-        apk add --no-cache go
-        
-        if ! check_go_version; then
-            log_warn "System Go is older than $GO_VERSION, installing from source..."
-            install_go_from_source
-        fi
-    else
+    if ! command_exists apk; then
         log_error "apk not found. This script requires Alpine Linux."
         exit 1
     fi
+    
+    # Try to install from apk repository
+    log_info "Attempting to install Go from Alpine repository..."
+    if apk add --no-cache go 2>/dev/null; then
+        if check_go_version; then
+            log_success "Go installed from Alpine repository"
+            return 0
+        else
+            log_warn "Repository Go is older than $GO_VERSION"
+        fi
+    else
+        log_warn "Go not available in Alpine repository (or installation failed)"
+    fi
+    
+    # Fall back to source installation
+    log_info "Falling back to source installation from go.dev..."
+    install_go_from_source
 }
 
 install_go_from_source() {
@@ -132,6 +142,7 @@ install_go_from_source() {
     
     if ! command_exists curl && ! command_exists wget; then
         log_error "curl or wget required to download Go"
+        log_error "Please install curl or wget: apk add curl"
         exit 1
     fi
     
@@ -139,15 +150,43 @@ install_go_from_source() {
     tmpdir=$(mktemp -d)
     trap "rm -rf $tmpdir" EXIT
     
+    # Download with error checking
+    local download_success=0
     if command_exists curl; then
-        curl -fsSL "$download_url" -o "$tmpdir/$go_file"
-    else
-        wget -q "$download_url" -O "$tmpdir/$go_file"
+        if curl -fsSL "$download_url" -o "$tmpdir/$go_file" 2>/dev/null; then
+            download_success=1
+        fi
+    elif command_exists wget; then
+        if wget -q "$download_url" -O "$tmpdir/$go_file" 2>/dev/null; then
+            download_success=1
+        fi
+    fi
+    
+    if [ $download_success -eq 0 ]; then
+        log_error "Failed to download Go from $download_url"
+        log_error "Please check your internet connection and try again"
+        log_error "Or manually download from: https://go.dev/dl"
+        exit 1
+    fi
+    
+    # Verify file was downloaded
+    if [ ! -f "$tmpdir/$go_file" ] || [ ! -s "$tmpdir/$go_file" ]; then
+        log_error "Downloaded file is empty or missing"
+        exit 1
     fi
     
     log_info "Extracting Go..."
-    rm -rf /usr/local/go
-    tar -C /usr/local -xzf "$tmpdir/$go_file"
+    if ! tar -C /usr/local -xzf "$tmpdir/$go_file" 2>/dev/null; then
+        log_error "Failed to extract Go archive"
+        log_error "The downloaded file may be corrupted"
+        exit 1
+    fi
+    
+    # Verify Go was extracted
+    if [ ! -f "/usr/local/go/bin/go" ]; then
+        log_error "Go binary not found after extraction"
+        exit 1
+    fi
     
     log_success "Go installed to /usr/local/go"
     
@@ -161,12 +200,24 @@ install_go_from_source() {
 install_build_dependencies() {
     log_info "Installing build dependencies..."
     
-    apk add --no-cache \
+    # Update package index first
+    if ! apk update 2>/dev/null; then
+        log_error "Failed to update package index"
+        log_error "Please check your internet connection"
+        exit 1
+    fi
+    
+    # Install dependencies
+    if ! apk add --no-cache \
         build-base \
         git \
         curl \
         wget \
-        pkgconfig
+        pkgconfig 2>/dev/null; then
+        log_error "Failed to install build dependencies"
+        log_error "Please check your internet connection and try again"
+        exit 1
+    fi
     
     log_success "Build dependencies installed"
 }
