@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 	"syscall"
@@ -75,17 +76,27 @@ type Manager struct {
 	queue       []*Operation      // pending ops
 	queueMu     sync.Mutex
 	running     *Operation        // currently executing op
+	history     []*Operation      // recently completed ops (bounded)
+	maxHistory  int
 	maxQueue    int
 	timeout     time.Duration
 }
 
 // NewManager creates an APK manager.
 func NewManager(logger *log.Logger) *Manager {
+	apkBin := "/sbin/apk"
+	for _, p := range []string{"/sbin/apk", "/bin/apk", "/usr/sbin/apk", "/usr/bin/apk"} {
+		if _, err := os.Stat(p); err == nil {
+			apkBin = p
+			break
+		}
+	}
 	return &Manager{
-		apkBin:      "/sbin/apk",
+		apkBin:      apkBin,
 		apkCacheDir: "/var/cache/apk",
 		logger:      logger,
 		maxQueue:    10,
+		maxHistory:  32,
 		timeout:     5 * time.Minute,
 	}
 }
@@ -191,7 +202,7 @@ func (m *Manager) QueueLen() int {
 	return len(m.queue)
 }
 
-// GetOperation returns an operation by ID.
+// GetOperation returns an operation by ID, including recently completed ones.
 func (m *Manager) GetOperation(id string) *Operation {
 	m.queueMu.Lock()
 	defer m.queueMu.Unlock()
@@ -203,7 +214,24 @@ func (m *Manager) GetOperation(id string) *Operation {
 			return op
 		}
 	}
+	for _, op := range m.history {
+		if op.ID == id {
+			return op
+		}
+	}
 	return nil
+}
+
+// archiveOp appends a completed operation to the bounded history.
+// Caller must hold m.queueMu.
+func (m *Manager) archiveOp(op *Operation) {
+	if op == nil {
+		return
+	}
+	m.history = append(m.history, op)
+	if len(m.history) > m.maxHistory {
+		m.history = m.history[len(m.history)-m.maxHistory:]
+	}
 }
 
 // FlushQueue removes all pending (not running) operations.
@@ -262,6 +290,7 @@ func (m *Manager) runMutating(ctx context.Context, opType OpType, args []string)
 	op.EndedAt = &end
 
 	m.queueMu.Lock()
+	m.archiveOp(m.running)
 	m.running = nil
 	// Promote next queued op if any
 	if len(m.queue) > 0 {
@@ -297,6 +326,7 @@ func (m *Manager) runQueued(op *Operation) {
 	op.EndedAt = &end
 
 	m.queueMu.Lock()
+	m.archiveOp(m.running)
 	m.running = nil
 	// Chain next queued op
 	if len(m.queue) > 0 {
