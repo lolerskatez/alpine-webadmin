@@ -213,7 +213,15 @@ button:focus-visible, a:focus-visible { outline-offset: 2px; }
 }
 
 /* ── Alerts ───────────────────────────────────────────── */
-.alerts-region { margin-bottom: 0.75rem; }
+.alerts-region {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    max-width: min(420px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+.alerts-region .alert { pointer-events: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
 .alert {
     display: flex;
     align-items: center;
