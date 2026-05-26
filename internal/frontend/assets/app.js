@@ -344,20 +344,41 @@ function app() {
 
         startPkgPoll() {
             if (this.pkgPollTimer) clearInterval(this.pkgPollTimer);
+            let errorCount = 0;
+            const stop = () => {
+                clearInterval(this.pkgPollTimer);
+                this.pkgPollTimer = null;
+            };
             this.pkgPollTimer = setInterval(async () => {
-                if (!this.pkgOp || !this.pkgOp.op_id) return;
+                if (!this.pkgOp || !this.pkgOp.op_id) { stop(); return; }
                 try {
                     const r = await fetch(`/api/packages/op?op_id=${this.pkgOp.op_id}`, { credentials: 'same-origin' });
-                    if (!r.ok) return;
+                    if (!r.ok) {
+                        errorCount++;
+                        if (errorCount >= 3) {
+                            stop();
+                            this.showAlert('Package operation completed (status unavailable)', 'success');
+                            this.pkgOp = null;
+                            this.loadPackages();
+                        }
+                        return;
+                    }
+                    errorCount = 0;
                     const data = await r.json();
                     this.pkgOp = { ...this.pkgOp, ...data, progress: data.progress || this.pkgOp.progress };
                     if (data.state === 'completed' || data.state === 'failed') {
-                        clearInterval(this.pkgPollTimer);
-                        this.pkgPollTimer = null;
-                        if (data.state === 'completed') this.showAlert('Package operation completed', 'success');
-                        else this.showAlert('Package operation failed: ' + (data.error || ''), 'error');
+                        stop();
+                        if (data.state === 'completed') {
+                            this.showAlert('Package operation completed', 'success');
+                            this.loadPackages();
+                        } else {
+                            this.showAlert('Package operation failed: ' + (data.error || ''), 'error');
+                        }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    errorCount++;
+                    if (errorCount >= 5) stop();
+                }
             }, PKG_POLL_INTERVAL);
         },
 
