@@ -5,6 +5,8 @@ command="/usr/sbin/roothelper"
 command_args="-config /etc/webadmin/config.json"
 pidfile="/run/webadmin/roothelper.pid"
 command_background=true
+output_log="/var/log/roothelper.log"
+error_log="/var/log/roothelper.log"
 
 depend() {
     need localmount

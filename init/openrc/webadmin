@@ -6,6 +6,8 @@ command_args="-config /etc/webadmin/config.json"
 command_user="webadmin:webadmin"
 pidfile="/run/webadmin/webadmin.pid"
 command_background=true
+output_log="/var/log/webadmin.log"
+error_log="/var/log/webadmin.log"
 
 depend() {
     need net roothelper
