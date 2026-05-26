@@ -39,6 +39,7 @@ function app() {
         pkgOp: null,
         pkgOpLoading: false,
         pkgPollTimer: null,
+        confirmRemovePackage: '',
 
         // ── Network ───────────────────────────────────────
         networkData: [],
@@ -304,7 +305,12 @@ function app() {
             await this.runPackageOp('install', [name]);
         },
 
+        showRemoveConfirm(name) {
+            this.confirmRemovePackage = name;
+        },
+
         async removePackage(name) {
+            this.confirmRemovePackage = '';
             await this.runPackageOp('remove', [name]);
         },
 
