@@ -167,16 +167,32 @@ func (m *Manager) parseInstalledVerbose(output string) []PackageInfo {
 	return pkgs
 }
 
-// Search finds packages by name or description.
+// Search finds packages by name or description, including version and
+// installed status. Uses `apk search -v` for descriptions and cross-references
+// against the installed list.
 func (m *Manager) Search(ctx context.Context, query string) ([]PackageInfo, error) {
 	if err := validatePackageName(query); err != nil {
 		return nil, err
 	}
-	out, err := m.exec(ctx, "search", query)
+	out, err := m.exec(ctx, "search", "-v", query)
 	if err != nil {
 		return nil, fmt.Errorf("apk: search failed: %w: %s", err, string(out))
 	}
-	return m.parseSearch(string(out)), nil
+	pkgs := m.parseSearch(string(out))
+
+	// Build set of installed package names to mark matches
+	installed := make(map[string]bool)
+	if installedPkgs, err := m.List(ctx); err == nil {
+		for _, p := range installedPkgs {
+			installed[p.Name] = true
+		}
+	}
+	for i := range pkgs {
+		if installed[pkgs[i].Name] {
+			pkgs[i].Installed = true
+		}
+	}
+	return pkgs, nil
 }
 
 // Info returns metadata for a specific package.

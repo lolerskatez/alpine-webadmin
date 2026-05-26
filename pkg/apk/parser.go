@@ -42,18 +42,20 @@ func (m *Manager) parseSearch(output string) []PackageInfo {
 		if line == "" {
 			continue
 		}
-		name, desc := "", ""
+		var head, desc string
 		if idx := strings.Index(line, " - "); idx > 0 {
-			name = stripVersion(line[:idx])
+			head = line[:idx]
 			desc = strings.TrimSpace(line[idx+3:])
 		} else {
-			name = stripVersion(line)
+			head = line
 		}
+		name := stripVersion(head)
 		if name == "" {
 			continue
 		}
 		pkgs = append(pkgs, PackageInfo{
 			Name:        name,
+			Version:     extractVersion(head),
 			Description: desc,
 		})
 	}

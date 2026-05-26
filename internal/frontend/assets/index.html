@@ -460,7 +460,10 @@
                                     <tbody>
                                         <template x-for="pkg in packages" :key="pkg.name">
                                             <tr role="row">
-                                                <td role="cell" x-text="pkg.name"></td>
+                                                <td role="cell">
+                                                    <span x-text="pkg.name"></span>
+                                                    <span x-show="pkg.installed" class="badge badge-ok" style="margin-left:0.4rem;">installed</span>
+                                                </td>
                                                 <td role="cell" x-text="pkg.version || '-'" class="mono"></td>
                                                 <td role="cell" x-text="pkg.description || '-'" class="description-cell"></td>
                                                 <td role="cell" class="actions-col">
