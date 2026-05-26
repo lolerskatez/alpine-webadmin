@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -126,13 +127,44 @@ func (m *Manager) RunningID() string {
 
 // ── Synchronous Queries (read-only, no mutex needed) ───────────
 
-// List returns all installed packages.
+// List returns all installed packages with descriptions.
+// Uses `apk info -vv` which outputs "name-version - description" per line.
 func (m *Manager) List(ctx context.Context) ([]PackageInfo, error) {
-	out, err := m.exec(ctx, "list", "--installed")
+	out, err := m.exec(ctx, "info", "-vv")
 	if err != nil {
 		return nil, fmt.Errorf("apk: list failed: %w: %s", err, string(out))
 	}
-	return m.parseList(string(out)), nil
+	return m.parseInstalledVerbose(string(out)), nil
+}
+
+// parseInstalledVerbose parses `apk info -vv` output:
+//   "name-version - description"
+func (m *Manager) parseInstalledVerbose(output string) []PackageInfo {
+	var pkgs []PackageInfo
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var head, desc string
+		if idx := strings.Index(line, " - "); idx > 0 {
+			head = line[:idx]
+			desc = strings.TrimSpace(line[idx+3:])
+		} else {
+			head = line
+		}
+		name := stripVersion(head)
+		if name == "" {
+			continue
+		}
+		pkgs = append(pkgs, PackageInfo{
+			Name:        name,
+			Version:     extractVersion(head),
+			Description: desc,
+			Installed:   true,
+		})
+	}
+	return pkgs
 }
 
 // Search finds packages by name or description.
