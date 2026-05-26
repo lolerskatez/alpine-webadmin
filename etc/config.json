@@ -7,6 +7,11 @@
   "allowed_helpers": [
     "/sbin/rc-service",
     "/sbin/rc-status",
-    "/sbin/apk"
+    "/sbin/rc-update",
+    "/sbin/apk",
+    "/bin/rc-service",
+    "/bin/rc-status",
+    "/bin/rc-update",
+    "/bin/apk"
   ]
 }

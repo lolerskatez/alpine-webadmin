@@ -3,6 +3,7 @@ package openrc
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -52,11 +53,30 @@ type Manager struct {
 }
 
 // NewManager creates an OpenRC manager with absolute binary paths.
+// It tries /sbin first (standard Alpine), then /bin (some distros),
+// then falls back to PATH lookup.
 func NewManager(logger *log.Logger) *Manager {
+	find := func(name string) string {
+		candidates := []string{
+			"/sbin/" + name,
+			"/bin/" + name,
+			"/usr/sbin/" + name,
+			"/usr/bin/" + name,
+		}
+		for _, p := range candidates {
+			if _, err := os.Stat(p); err == nil {
+				return p
+			}
+		}
+		if p, err := exec.LookPath(name); err == nil {
+			return p
+		}
+		return "/sbin/" + name // last resort; will fail obviously
+	}
 	return &Manager{
-		rcService: "/sbin/rc-service",
-		rcStatus:  "/sbin/rc-status",
-		rcUpdate:  "/sbin/rc-update",
+		rcService: find("rc-service"),
+		rcStatus:  find("rc-status"),
+		rcUpdate:  find("rc-update"),
 		logger:    logger,
 		timeout:   30 * time.Second,
 	}
