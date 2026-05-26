@@ -231,10 +231,10 @@ button:focus-visible, a:focus-visible { outline-offset: 2px; }
     margin-bottom: 0.5rem;
     font-size: 13px;
 }
-.alert-error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
-.alert-warning { background: rgba(234,179,8,0.15); border: 1px solid rgba(234,179,8,0.3); color: #fde047; }
-.alert-info { background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.3); color: #67e8f9; }
-.alert-success { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #86efac; }
+.alert-error { background: #3b1414; border: 1px solid rgba(239,68,68,0.5); color: #fca5a5; }
+.alert-warning { background: #3a2e0a; border: 1px solid rgba(234,179,8,0.5); color: #fde047; }
+.alert-info { background: #0a2a30; border: 1px solid rgba(6,182,212,0.5); color: #67e8f9; }
+.alert-success { background: #0f2e1c; border: 1px solid rgba(34,197,94,0.5); color: #86efac; }
 .alert-icon {
     width: 18px; height: 18px;
     display: flex; align-items: center; justify-content: center;
