@@ -395,18 +395,29 @@ func main() {
 		}
 		dfBin := findBin("df", "/bin/df", "/usr/bin/df", "/sbin/df")
 		cmd := exec.Command(dfBin, "-h")
-		out, err := cmd.CombinedOutput()
+		// Capture stdout and stderr separately; df commonly exits non-zero
+		// when it cannot stat some mounts (e.g. Docker overlays) but its
+		// stdout listing is still valid. Filter stderr permission-denied
+		// noise rather than failing the request.
+		var stdoutBuf, stderrBuf strings.Builder
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+		err := cmd.Run()
+		stdout := stdoutBuf.String()
 		if err != nil {
-			logger.Error("storage: df failed", map[string]interface{}{
-				"bin":    dfBin,
-				"err":    err.Error(),
-				"output": string(out),
+			if stdout == "" {
+				logger.Error("storage: df failed", map[string]interface{}{
+					"bin": dfBin, "err": err.Error(), "stderr": stderrBuf.String(),
+				})
+				http.Error(w, fmt.Sprintf("df failed: %v", err), http.StatusServiceUnavailable)
+				return
+			}
+			logger.Warn("storage: df partial failure", map[string]interface{}{
+				"bin": dfBin, "err": err.Error(), "stderr": stderrBuf.String(),
 			})
-			http.Error(w, fmt.Sprintf("df failed: %v", err), http.StatusServiceUnavailable)
-			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write(out)
+		w.Write([]byte(stdout))
 	})))
 
 	mux.Handle("/api/users", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
