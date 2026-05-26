@@ -484,6 +484,14 @@ create_system_user() {
         adduser -S -D -H -s /sbin/nologin -G "$WEBADMIN_GROUP" "$WEBADMIN_USER"
         log_success "User $WEBADMIN_USER created"
     fi
+
+    # Allow reading /var/log/messages (typically root:adm 0640) for log streaming
+    if getent group adm >/dev/null 2>&1; then
+        if ! id -nG "$WEBADMIN_USER" | grep -qw adm; then
+            adduser "$WEBADMIN_USER" adm 2>/dev/null || true
+            log_success "Added $WEBADMIN_USER to adm group (for log access)"
+        fi
+    fi
 }
 
 create_directories() {

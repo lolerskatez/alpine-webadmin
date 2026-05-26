@@ -552,7 +552,13 @@ func main() {
 
 		var cmd *exec.Cmd
 		var source string
-		if _, err := os.Stat("/var/log/messages"); err == nil {
+		// Probe read access (stat-only isn't enough; file may exist but be 0640 root:adm)
+		readable := false
+		if f, err := os.Open("/var/log/messages"); err == nil {
+			f.Close()
+			readable = true
+		}
+		if readable {
 			tailBin := findBin("tail", "/usr/bin/tail", "/bin/tail")
 			cmd = exec.Command(tailBin, "-n", "100", "-F", "/var/log/messages")
 			source = "/var/log/messages"
