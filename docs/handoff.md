@@ -1,5 +1,68 @@
 # Alpine WebAdmin — Session Handoff (May 2026)
 
+## Testbench Fixes — Late-May 2026 Session
+
+The following issues were discovered while running on a real Alpine testbench and were fixed. Many of these changes require both binaries (`webadmin` + `roothelper`) **and** the deployed `/etc/webadmin/config.json` to be updated.
+
+### Package Manager
+- **Search returned empty descriptions / versions** — `pkg/apk/apk.go` `Search()` now uses `apk search -v`, allows empty query (returns full index), and cross-references the installed list to populate `Installed: true`. `pkg/apk/parser.go` `parseSearch()` extracts version from the `name-version` head.
+- **64 KiB IPC cap rejected full package listing** — `pkg/ipc/ipc.go` `MaxMessageSize` bumped from 64 KiB → **8 MiB** (Alpine has ~10k packages). Test `pkg/ipc/ipc_test.go::TestReadMessageTooLarge` updated to use `MaxMessageSize+1`.
+- **5-second IPC timeout too short for full listing** — `cmd/webadmin/main.go` introduced `forwardIPCWithTimeout`; `/api/packages` and `/api/packages/search` now use a 60 s deadline. `cmd/roothelper/main.go` `handlePackageSearch` deadline bumped 10 s → 55 s.
+- **Packages UI** — Replaced the single "Installed" button with a 3-way filter (All / Available / Installed) and added client-side pagination (50/page) with a Load More button and `Showing X of Y` counter. Default view is **All**.
+
+### System / Power
+- **Reboot & Shutdown returned `ErrCapabilityDenied`** — Roothelper now uses `broker.resolveAllowed(candidates...)` to pick the first whitelisted path that exists (tries `/sbin/reboot`, `/bin/reboot`, etc.). `etc/config.json` now includes `/sbin/reboot`, `/sbin/poweroff`, `/bin/reboot`, `/bin/poweroff`.
+- **System Information card empty** — Frontend was binding to `telemetry.*`, but WebSocket telemetry only carries `hostname`. Added `sysInfo` state + `loadSystemInfo()` that fetches `/api/system`; card now shows Hostname, OS, Kernel, CPU Cores, Total Memory, Uptime, Version. Added `formatUptime()` helper.
+
+### Storage
+- **`/api/storage` returned 503** — `df -h` exits non-zero when it cannot stat Docker overlay paths even though stdout is valid. `cmd/webadmin/main.go` now captures stdout/stderr separately and returns the listing as long as stdout is non-empty (errors logged as `Warn`).
+- **Binary path lookups** — Added `findBin(name, candidates...)` helper used for `df`, `getent`, `tail`, `dmesg` so the unprivileged `webadmin` user finds the right binary without relying on `$PATH`.
+
+### Log Streaming (privileged via roothelper)
+- **"Log stream disconnected" / `ERR_INCOMPLETE_CHUNKED_ENCODING`** — `webadmin` cannot read `/var/log/messages` (root:adm 0640) and cannot run `dmesg -w` (needs CAP_SYSLOG). Now routed through `roothelper`:
+  - New file `cmd/roothelper/logstream.go` — listens on a dedicated Unix socket (`/run/webadmin/logs.sock`, root:webadmin 0660), verifies peer UID via `SO_PEERCRED`, spawns `tail -F /var/log/messages` (or `dmesg -w` fallback) as root, copies stdout to the connection, kills child on disconnect.
+  - `cmd/roothelper/main.go` starts `serveLogStream` in a goroutine alongside the IPC server (non-fatal).
+  - `cmd/webadmin/main.go` `/api/logs` now just dials `cfg.LogsSocket` and forwards lines as SSE; sends `: ping` heartbeats every 15 s; closes upstream when client disconnects.
+  - `pkg/config/config.go` — new `LogsSocket` field with `DefaultLogsSocket = "/run/webadmin/logs.sock"`.
+  - `etc/config.json` — documents the new field.
+
+### OpenRC / Logging
+- **No log file existed for diagnostics** — `init/openrc/webadmin` and `init/openrc/roothelper` now set `output_log` and `error_log` so structured logs land in `/var/log/webadmin.log` and `/var/log/roothelper.log`.
+- **`webadmin` user permissions** — `setup.sh::create_system_user()` now adds `webadmin` to the `adm` group as a defense-in-depth measure (no longer strictly required after log streaming was moved to roothelper, but harmless).
+
+### Required Testbench Actions After Pulling These Changes
+
+```bash
+./setup.sh build
+doas cp bin/webadmin bin/roothelper /usr/sbin/
+
+# Update deployed config (the in-repo etc/config.json is NOT auto-copied if /etc/webadmin/config.json exists)
+doas tee /etc/webadmin/config.json >/dev/null <<'EOF'
+{
+  "listen": ":8080",
+  "ipc_socket": "/run/webadmin/ipc.sock",
+  "logs_socket": "/run/webadmin/logs.sock",
+  "session_ttl": 3600,
+  "ws_max_conns": 10,
+  "rate_limit_rps": 20,
+  "allowed_helpers": [
+    "/sbin/rc-service", "/sbin/rc-status", "/sbin/rc-update", "/sbin/apk",
+    "/bin/rc-service",  "/bin/rc-status",  "/bin/rc-update",  "/bin/apk",
+    "/sbin/reboot", "/sbin/poweroff", "/bin/reboot", "/bin/poweroff"
+  ]
+}
+EOF
+
+# Refresh init scripts (logging additions)
+doas cp init/openrc/webadmin init/openrc/roothelper /etc/init.d/
+doas chmod 755 /etc/init.d/webadmin /etc/init.d/roothelper
+doas touch /var/log/webadmin.log /var/log/roothelper.log
+doas chown webadmin:webadmin /var/log/webadmin.log
+
+doas rc-service roothelper restart
+doas rc-service webadmin restart
+```
+
 ## Project Status
 
 Alpine WebAdmin is a two-process Go web administration tool for Alpine Linux, providing service control, package management, user management, storage/network monitoring, log streaming, and system power control. The architecture uses `webadmin` (unprivileged HTTPS/WebSocket server) + `roothelper` (root-privileged IPC daemon). All frontend assets are embedded.
