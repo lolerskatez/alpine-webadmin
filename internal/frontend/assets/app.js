@@ -35,6 +35,7 @@ function app() {
         // ── Packages ──────────────────────────────────────
         packages: [],
         packageFilter: '',
+        packageView: 'installed', // 'all' | 'available' | 'installed'
         pkgLoading: false,
         pkgOp: null,
         pkgOpLoading: false,
@@ -276,9 +277,13 @@ function app() {
         },
 
         // ── Packages ──────────────────────────────────────
+        setPackageView(view) {
+            this.packageView = view;
+            this.searchPackages();
+        },
+
         async loadPackages() {
             this.pkgLoading = true;
-            this.packageFilter = '';
             try {
                 const r = await fetch('/api/packages', { credentials: 'same-origin' });
                 if (!r.ok) return;
@@ -290,15 +295,37 @@ function app() {
 
         async searchPackages() {
             const q = this.packageFilter.trim();
-            if (!q) { this.loadPackages(); return; }
+            const view = this.packageView;
+
+            // Installed view with no query: show full installed list
+            if (view === 'installed' && !q) {
+                await this.loadPackages();
+                return;
+            }
+            // Available/All without a query: require a search term
+            if (!q && (view === 'available' || view === 'all')) {
+                this.packages = [];
+                this.showAlert('Enter a search query to list ' + view + ' packages', 'info');
+                return;
+            }
+
             this.pkgLoading = true;
             try {
                 const r = await fetch(`/api/packages/search?q=${encodeURIComponent(q)}`, { credentials: 'same-origin' });
-                if (!r.ok) return;
+                if (!r.ok) { this.showAlert('Search failed', 'error'); return; }
                 const data = await r.json();
-                this.packages = data.packages || [];
-            } catch (e) { this.showAlert('Search failed', 'error'); }
-            this.pkgLoading = false;
+                let pkgs = data.packages || [];
+                if (view === 'installed') {
+                    pkgs = pkgs.filter(p => p.installed);
+                } else if (view === 'available') {
+                    pkgs = pkgs.filter(p => !p.installed);
+                }
+                this.packages = pkgs;
+            } catch (e) {
+                this.showAlert('Search failed', 'error');
+            } finally {
+                this.pkgLoading = false;
+            }
         },
 
         async installPackage(name) {

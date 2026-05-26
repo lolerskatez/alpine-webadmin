@@ -423,7 +423,17 @@
                                        @keydown.enter="searchPackages()"
                                        aria-label="Search packages">
                                 <button @click="searchPackages()" class="btn" aria-label="Search">Search</button>
-                                <button @click="loadPackages()" class="btn" aria-label="List installed">Installed</button>
+                                <div class="btn-group" role="group" aria-label="Package view filter">
+                                    <button @click="setPackageView('all')"
+                                            :class="packageView === 'all' ? 'btn btn-primary' : 'btn'"
+                                            aria-label="Show all packages">All</button>
+                                    <button @click="setPackageView('available')"
+                                            :class="packageView === 'available' ? 'btn btn-primary' : 'btn'"
+                                            aria-label="Show available packages">Available</button>
+                                    <button @click="setPackageView('installed')"
+                                            :class="packageView === 'installed' ? 'btn btn-primary' : 'btn'"
+                                            aria-label="Show installed packages">Installed</button>
+                                </div>
                             </div>
                             <div class="toolbar-group">
                                 <button @click="packageAction('update')" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Update index">Update Index</button>
