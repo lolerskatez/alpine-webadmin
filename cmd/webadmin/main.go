@@ -392,9 +392,16 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		out, err := exec.Command("df", "-h").Output()
+		dfBin := findBin("df", "/bin/df", "/usr/bin/df", "/sbin/df")
+		cmd := exec.Command(dfBin, "-h")
+		out, err := cmd.CombinedOutput()
 		if err != nil {
-			http.Error(w, "Not available", http.StatusServiceUnavailable)
+			logger.Error("storage: df failed", map[string]interface{}{
+				"bin":    dfBin,
+				"err":    err.Error(),
+				"output": string(out),
+			})
+			http.Error(w, fmt.Sprintf("df failed: %v", err), http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "text/plain")
@@ -403,8 +410,13 @@ func main() {
 
 	mux.Handle("/api/users", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
-			out, err := exec.Command("getent", "passwd").Output()
+			getentBin := findBin("getent", "/usr/bin/getent", "/bin/getent")
+			out, err := exec.Command(getentBin, "passwd").Output()
 			if err != nil {
+				logger.Error("users: getent failed", map[string]interface{}{
+					"bin": getentBin,
+					"err": err.Error(),
+				})
 				http.Error(w, "Not available", http.StatusServiceUnavailable)
 				return
 			}
@@ -699,6 +711,20 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 // ── Helpers ────────────────────────────────────────
+
+// findBin returns the first existing path from candidates, falling back to
+// exec.LookPath(name), then to the bare name as last resort.
+func findBin(name string, candidates ...string) string {
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	if p, err := exec.LookPath(name); err == nil {
+		return p
+	}
+	return name
+}
 
 func forwardIPC(w http.ResponseWriter, r *http.Request, client *ipc.Client, msgType string, payload []byte) {
 	forwardIPCWithTimeout(w, r, client, msgType, payload, 5*time.Second)
