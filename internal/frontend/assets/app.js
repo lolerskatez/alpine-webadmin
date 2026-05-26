@@ -35,12 +35,14 @@ function app() {
         // ── Packages ──────────────────────────────────────
         packages: [],
         packageFilter: '',
-        packageView: 'installed', // 'all' | 'available' | 'installed'
+        packageView: 'all', // 'all' | 'available' | 'installed'
         pkgLoading: false,
         pkgOp: null,
         pkgOpLoading: false,
         pkgPollTimer: null,
         confirmRemovePackage: '',
+        pkgPageSize: 50,
+        pkgVisibleCount: 50,
 
         // ── Network ───────────────────────────────────────
         networkData: [],
@@ -166,7 +168,7 @@ function app() {
         loadTabData() {
             switch (this.tab) {
                 case 'services': this.loadServices(); break;
-                case 'packages': this.loadPackages(); break;
+                case 'packages': this.searchPackages(); break;
                 case 'network': this.loadNetwork(); break;
                 case 'storage': this.loadStorage(); break;
                 case 'users': this.loadUsers(); break;
@@ -289,6 +291,7 @@ function app() {
                 if (!r.ok) return;
                 const data = await r.json();
                 this.packages = (data.packages || []).map(p => ({ ...p, installed: true }));
+                this.pkgVisibleCount = this.pkgPageSize;
             } catch (e) { this.showAlert('Failed to load packages', 'error'); }
             this.pkgLoading = false;
         },
@@ -297,15 +300,9 @@ function app() {
             const q = this.packageFilter.trim();
             const view = this.packageView;
 
-            // Installed view with no query: show full installed list
+            // Installed view with no query: use the fast installed-only endpoint
             if (view === 'installed' && !q) {
                 await this.loadPackages();
-                return;
-            }
-            // Available/All without a query: require a search term
-            if (!q && (view === 'available' || view === 'all')) {
-                this.packages = [];
-                this.showAlert('Enter a search query to list ' + view + ' packages', 'info');
                 return;
             }
 
@@ -321,11 +318,20 @@ function app() {
                     pkgs = pkgs.filter(p => !p.installed);
                 }
                 this.packages = pkgs;
+                this.pkgVisibleCount = this.pkgPageSize;
             } catch (e) {
                 this.showAlert('Search failed', 'error');
             } finally {
                 this.pkgLoading = false;
             }
+        },
+
+        loadMorePackages() {
+            this.pkgVisibleCount = Math.min(this.pkgVisibleCount + this.pkgPageSize, this.packages.length);
+        },
+
+        get visiblePackages() {
+            return this.packages.slice(0, this.pkgVisibleCount);
         },
 
         async installPackage(name) {

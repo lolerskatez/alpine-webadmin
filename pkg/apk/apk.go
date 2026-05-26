@@ -171,10 +171,14 @@ func (m *Manager) parseInstalledVerbose(output string) []PackageInfo {
 // installed status. Uses `apk search -v` for descriptions and cross-references
 // against the installed list.
 func (m *Manager) Search(ctx context.Context, query string) ([]PackageInfo, error) {
-	if err := validatePackageName(query); err != nil {
-		return nil, err
+	args := []string{"search", "-v"}
+	if query != "" {
+		if err := validatePackageName(query); err != nil {
+			return nil, err
+		}
+		args = append(args, query)
 	}
-	out, err := m.exec(ctx, "search", "-v", query)
+	out, err := m.exec(ctx, args...)
 	if err != nil {
 		return nil, fmt.Errorf("apk: search failed: %w: %s", err, string(out))
 	}
