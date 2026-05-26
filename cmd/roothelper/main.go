@@ -194,6 +194,20 @@ func (b *broker) checkAllow(path string) bool {
 	return b.allowed[path]
 }
 
+// resolveAllowed returns the first candidate path that both exists on disk
+// AND is whitelisted in allowed_helpers. Returns ("", false) if none match.
+func (b *broker) resolveAllowed(candidates ...string) (string, bool) {
+	for _, p := range candidates {
+		if !b.allowed[p] {
+			continue
+		}
+		if _, err := os.Stat(p); err == nil {
+			return p, true
+		}
+	}
+	return "", false
+}
+
 func (b *broker) validateService(name string) error {
 	if name == "" || !reServiceName.MatchString(name) {
 		return fmt.Errorf("invalid service name")
@@ -559,8 +573,9 @@ func (b *broker) opToIPC(op *apk.Operation) ipc.PackageOpData {
 // ── Reboot / Shutdown ──────────────────────────────
 
 func (b *broker) handleReboot(req ipc.Envelope) ipc.Envelope {
-	if !b.checkAllow("/sbin/reboot") {
-		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/reboot not allowed")
+	bin, ok := b.resolveAllowed("/sbin/reboot", "/bin/reboot", "/usr/sbin/reboot", "/usr/bin/reboot")
+	if !ok {
+		return b.error(req, ipc.ErrCapabilityDenied, "reboot binary not allowed or not found")
 	}
 	var body ipc.RebootReq
 	json.Unmarshal(req.Payload, &body)
@@ -571,16 +586,17 @@ func (b *broker) handleReboot(req ipc.Envelope) ipc.Envelope {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if delay > 0 {
-		_, _ = b.run(ctx, "/sbin/reboot", "-d", fmt.Sprintf("%d", delay))
+		_, _ = b.run(ctx, bin, "-d", fmt.Sprintf("%d", delay))
 	} else {
-		_, _ = b.run(ctx, "/sbin/reboot")
+		_, _ = b.run(ctx, bin)
 	}
 	return b.ok(req, map[string]string{"status": "reboot scheduled"})
 }
 
 func (b *broker) handleShutdown(req ipc.Envelope) ipc.Envelope {
-	if !b.checkAllow("/sbin/poweroff") {
-		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/poweroff not allowed")
+	bin, ok := b.resolveAllowed("/sbin/poweroff", "/bin/poweroff", "/usr/sbin/poweroff", "/usr/bin/poweroff")
+	if !ok {
+		return b.error(req, ipc.ErrCapabilityDenied, "poweroff binary not allowed or not found")
 	}
 	var body ipc.ShutdownReq
 	json.Unmarshal(req.Payload, &body)
@@ -591,9 +607,9 @@ func (b *broker) handleShutdown(req ipc.Envelope) ipc.Envelope {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if delay > 0 {
-		_, _ = b.run(ctx, "/sbin/poweroff", "-d", fmt.Sprintf("%d", delay))
+		_, _ = b.run(ctx, bin, "-d", fmt.Sprintf("%d", delay))
 	} else {
-		_, _ = b.run(ctx, "/sbin/poweroff")
+		_, _ = b.run(ctx, bin)
 	}
 	return b.ok(req, map[string]string{"status": "shutdown scheduled"})
 }

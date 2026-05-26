@@ -69,6 +69,7 @@ function app() {
         // ── System ────────────────────────────────────────
         confirmReboot: false,
         confirmShutdown: false,
+        sysInfo: {},
 
         // ── Alerts ────────────────────────────────────────
         alerts: [],
@@ -174,7 +175,7 @@ function app() {
                 case 'users': this.loadUsers(); break;
                 case 'logs': break; // handled by toggle
                 case 'sessions': this.loadSessions(); break;
-                case 'system': break; // static
+                case 'system': this.loadSystemInfo(); break;
             }
         },
 
@@ -602,6 +603,14 @@ function app() {
         },
 
         // ── System ────────────────────────────────────────
+        async loadSystemInfo() {
+            try {
+                const r = await fetch('/api/system', { credentials: 'same-origin' });
+                if (!r.ok) { this.showAlert('Failed to load system info', 'error'); return; }
+                this.sysInfo = await r.json();
+            } catch (e) { this.showAlert('Failed to load system info', 'error'); }
+        },
+
         async powerAction(action) {
             this.confirmReboot = false;
             this.confirmShutdown = false;
@@ -655,6 +664,18 @@ function app() {
             if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
             if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
             return n.toString();
+        },
+
+        formatUptime(sec) {
+            if (sec == null || isNaN(sec) || sec <= 0) return '-';
+            const d = Math.floor(sec / 86400);
+            const h = Math.floor((sec % 86400) / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            const parts = [];
+            if (d) parts.push(d + 'd');
+            if (h) parts.push(h + 'h');
+            if (m || (!d && !h)) parts.push(m + 'm');
+            return parts.join(' ');
         },
 
         formatDuration(sec) {

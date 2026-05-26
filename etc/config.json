@@ -12,6 +12,10 @@
     "/bin/rc-service",
     "/bin/rc-status",
     "/bin/rc-update",
-    "/bin/apk"
+    "/bin/apk",
+    "/sbin/reboot",
+    "/sbin/poweroff",
+    "/bin/reboot",
+    "/bin/poweroff"
   ]
 }

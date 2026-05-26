@@ -798,19 +798,27 @@
                                 <div class="info-grid">
                                     <div class="info-row">
                                         <span class="info-label">Hostname</span>
-                                        <span class="info-value" x-text="telemetry.hostname || '-'"></span>
+                                        <span class="info-value" x-text="sysInfo.hostname || telemetry.hostname || '-'"></span>
                                     </div>
                                     <div class="info-row">
                                         <span class="info-label">OS</span>
-                                        <span class="info-value" x-text="telemetry.os || '-'"></span>
+                                        <span class="info-value" x-text="sysInfo.os || '-'"></span>
                                     </div>
                                     <div class="info-row">
                                         <span class="info-label">Kernel</span>
-                                        <span class="info-value" x-text="telemetry.kernel || '-'"></span>
+                                        <span class="info-value" x-text="sysInfo.kernel || '-'"></span>
                                     </div>
                                     <div class="info-row">
                                         <span class="info-label">CPU Cores</span>
-                                        <span class="info-value" x-text="telemetry.cpu_count || '-'"></span>
+                                        <span class="info-value" x-text="sysInfo.cpu_count || '-'"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">Total Memory</span>
+                                        <span class="info-value" x-text="formatKB(sysInfo.total_mem_kb)"></span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">Uptime</span>
+                                        <span class="info-value" x-text="formatUptime(sysInfo.uptime_sec)"></span>
                                     </div>
                                     <div class="info-row">
                                         <span class="info-label">Version</span>
