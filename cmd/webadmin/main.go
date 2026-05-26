@@ -267,7 +267,7 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		forwardIPC(w, r, ipcClient, ipc.TypePackageList, []byte("{}"))
+		forwardIPCWithTimeout(w, r, ipcClient, ipc.TypePackageList, []byte("{}"), 60*time.Second)
 	})))
 
 	mux.Handle("/api/packages/search", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -277,7 +277,7 @@ func main() {
 		}
 		q := r.URL.Query().Get("q")
 		payload, _ := json.Marshal(ipc.PackageSearchReq{Query: q})
-		forwardIPC(w, r, ipcClient, ipc.TypePackageSearch, payload)
+		forwardIPCWithTimeout(w, r, ipcClient, ipc.TypePackageSearch, payload, 60*time.Second)
 	}))))
 
 	mux.Handle("/api/packages/info", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -701,7 +701,11 @@ func securityHeaders(next http.Handler) http.Handler {
 // ── Helpers ────────────────────────────────────────
 
 func forwardIPC(w http.ResponseWriter, r *http.Request, client *ipc.Client, msgType string, payload []byte) {
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	forwardIPCWithTimeout(w, r, client, msgType, payload, 5*time.Second)
+}
+
+func forwardIPCWithTimeout(w http.ResponseWriter, r *http.Request, client *ipc.Client, msgType string, payload []byte, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
 
 	resp, err := client.Call(ctx, ipc.Envelope{

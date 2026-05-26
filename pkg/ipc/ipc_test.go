@@ -39,12 +39,13 @@ func TestReadWriteMessage(t *testing.T) {
 
 func TestReadMessageTooLarge(t *testing.T) {
 	var buf bytes.Buffer
-	// Write length header for 100KB (exceeds MaxMessageSize)
+	// Write length header for MaxMessageSize+1 bytes
 	length := make([]byte, 4)
-	length[0] = 0
-	length[1] = 1
-	length[2] = 0x86
-	length[3] = 0xA0
+	tooBig := uint32(MaxMessageSize + 1)
+	length[0] = byte(tooBig >> 24)
+	length[1] = byte(tooBig >> 16)
+	length[2] = byte(tooBig >> 8)
+	length[3] = byte(tooBig)
 	buf.Write(length)
 	_, err := ReadMessage(&buf)
 	if err == nil {

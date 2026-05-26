@@ -414,7 +414,7 @@ func (b *broker) handlePackageSearch(req ipc.Envelope) ipc.Envelope {
 	if err := json.Unmarshal(req.Payload, &body); err != nil {
 		return b.error(req, ipc.ErrInvalidRequest, err.Error())
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 55*time.Second)
 	defer cancel()
 	pkgs, err := b.apkMgr.Search(ctx, body.Query)
 	if err != nil {

@@ -3,7 +3,9 @@ package ipc
 import "encoding/json"
 
 // MaxMessageSize is the hard cap for a single IPC message.
-const MaxMessageSize = 65536
+// 8 MiB is large enough for a full Alpine package listing (~10k entries
+// with descriptions, version, etc.) while still bounding memory usage.
+const MaxMessageSize = 8 * 1024 * 1024
 
 // Protocol version.
 const Version = 1
