@@ -1,6 +1,7 @@
 {
   "listen": ":8080",
   "ipc_socket": "/run/webadmin/ipc.sock",
+  "logs_socket": "/run/webadmin/logs.sock",
   "session_ttl": 3600,
   "ws_max_conns": 10,
   "rate_limit_rps": 20,

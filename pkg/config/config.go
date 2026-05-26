@@ -12,6 +12,7 @@ import (
 const (
 	DefaultListen       = ":8080"
 	DefaultIPCSocket    = "/run/webadmin/ipc.sock"
+	DefaultLogsSocket   = "/run/webadmin/logs.sock"
 	DefaultSessionTTL   = 3600
 	DefaultWSMaxConns   = 10
 	DefaultRateLimitRPS = 20
@@ -23,6 +24,7 @@ type Config struct {
 	TLSCert        string   `json:"tls_cert,omitempty"`
 	TLSKey         string   `json:"tls_key,omitempty"`
 	IPCSocket      string   `json:"ipc_socket"`
+	LogsSocket     string   `json:"logs_socket"`
 	SessionTTL     int      `json:"session_ttl"`
 	WSMaxConns     int      `json:"ws_max_conns"`
 	RateLimitRPS   int      `json:"rate_limit_rps"`
@@ -58,6 +60,9 @@ func (c *Config) applyDefaults() error {
 	if c.IPCSocket == "" {
 		c.IPCSocket = DefaultIPCSocket
 	}
+	if c.LogsSocket == "" {
+		c.LogsSocket = DefaultLogsSocket
+	}
 	if c.SessionTTL == 0 {
 		c.SessionTTL = DefaultSessionTTL
 	}
@@ -85,6 +90,9 @@ func (c *Config) validate() error {
 	}
 	if !filepath.IsAbs(c.IPCSocket) {
 		return fmt.Errorf("config: ipc_socket must be an absolute path")
+	}
+	if !filepath.IsAbs(c.LogsSocket) {
+		return fmt.Errorf("config: logs_socket must be an absolute path")
 	}
 
 	for _, helper := range c.AllowedHelpers {

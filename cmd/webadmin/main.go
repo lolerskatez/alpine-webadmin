@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -541,73 +540,46 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// SSE streaming of system logs.
-		// Try /var/log/messages first (usually readable by adm group without
-		// root); fall back to dmesg -w (needs CAP_SYSLOG / root).
+		// SSE streaming of system logs. We dial roothelper's privileged log
+		// streaming socket so reading /var/log/messages / dmesg happens as
+		// root, regardless of webadmin's group membership.
 		flusher, ok := w.(http.Flusher)
 		if !ok {
 			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 			return
 		}
 
-		var cmd *exec.Cmd
-		var source string
-		// Probe read access (stat-only isn't enough; file may exist but be 0640 root:adm)
-		readable := false
-		if f, err := os.Open("/var/log/messages"); err == nil {
-			f.Close()
-			readable = true
-		}
-		if readable {
-			tailBin := findBin("tail", "/usr/bin/tail", "/bin/tail")
-			cmd = exec.Command(tailBin, "-n", "100", "-F", "/var/log/messages")
-			source = "/var/log/messages"
-		} else {
-			dmesgBin := findBin("dmesg", "/bin/dmesg", "/sbin/dmesg", "/usr/bin/dmesg")
-			cmd = exec.Command(dmesgBin, "-w")
-			source = "dmesg"
-		}
-
-		stdout, err := cmd.StdoutPipe()
+		conn, err := net.DialTimeout("unix", cfg.LogsSocket, 5*time.Second)
 		if err != nil {
-			logger.Error("logs: stdout pipe failed", map[string]interface{}{"src": source, "err": err.Error()})
-			http.Error(w, "Unavailable", http.StatusServiceUnavailable)
+			logger.Error("logs: dial logstream socket", map[string]interface{}{
+				"socket": cfg.LogsSocket, "err": err.Error(),
+			})
+			http.Error(w, fmt.Sprintf("logstream unavailable: %v", err), http.StatusServiceUnavailable)
 			return
 		}
-		stderr, _ := cmd.StderrPipe()
-		if err := cmd.Start(); err != nil {
-			logger.Error("logs: start failed", map[string]interface{}{"src": source, "err": err.Error()})
-			http.Error(w, fmt.Sprintf("log source start failed: %v", err), http.StatusServiceUnavailable)
-			return
-		}
-		defer cmd.Process.Kill()
-
-		// Drain stderr so we can log it if the process dies early
-		go func() {
-			if stderr == nil {
-				return
-			}
-			data, _ := io.ReadAll(stderr)
-			if len(data) > 0 {
-				logger.Error("logs: stderr", map[string]interface{}{"src": source, "stderr": string(data)})
-			}
-		}()
+		defer conn.Close()
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("X-Accel-Buffering", "no")
 
-		// Initial comment so the client knows the stream is alive
-		fmt.Fprintf(w, ": connected to %s\n\n", source)
+		fmt.Fprintf(w, ": connected\n\n")
 		flusher.Flush()
 
-		// Heartbeat ticker
+		// Close the upstream socket when the client disconnects so roothelper
+		// can clean up the child process.
+		ctx := r.Context()
+		go func() {
+			<-ctx.Done()
+			conn.Close()
+		}()
+
 		hb := time.NewTicker(15 * time.Second)
 		defer hb.Stop()
-		lines := make(chan string, 32)
+		lines := make(chan string, 64)
 		go func() {
-			scanner := bufio.NewScanner(stdout)
+			scanner := bufio.NewScanner(conn)
 			scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 			for scanner.Scan() {
 				lines <- scanner.Text()
@@ -615,7 +587,6 @@ func main() {
 			close(lines)
 		}()
 
-		ctx := r.Context()
 		for {
 			select {
 			case <-ctx.Done():

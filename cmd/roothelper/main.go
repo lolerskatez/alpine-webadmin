@@ -58,6 +58,14 @@ func main() {
 		"expectedUID": expectedUID,
 	})
 
+	// Start the log streaming server in the background. Failure here is
+	// non-fatal: the rest of the API should still function.
+	go func() {
+		if err := serveLogStream(cfg.LogsSocket, expectedUID, logger); err != nil {
+			logger.Error("logstream server failed", map[string]interface{}{"error": err.Error()})
+		}
+	}()
+
 	if err := ipc.Serve(cfg.IPCSocket, expectedUID, broker.handle); err != nil {
 		logger.Error("ipc server failed", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
