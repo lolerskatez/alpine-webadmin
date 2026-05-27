@@ -19,5 +19,6 @@
     "/sbin/poweroff",
     "/bin/reboot",
     "/bin/poweroff"
-  ]
+  ],
+  "admin_group": "wheel"
 }

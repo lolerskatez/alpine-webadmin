@@ -13,6 +13,8 @@ function app() {
     return {
         // ── Auth ──────────────────────────────────────────
         authenticated: false,
+        currentUser: '',
+        username: '',
         password: '',
         loginError: '',
         loginLoading: false,
@@ -290,6 +292,7 @@ function app() {
                 if (r.ok) {
                     this.authenticated = true;
                     const data = await r.json();
+                    this.currentUser = data.username || '';
                     this.readCSRFCookie();
                     this.initWS();
                     this.loadTabData();
@@ -308,10 +311,12 @@ function app() {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: this.password })
+                    body: JSON.stringify({ username: this.username, password: this.password })
                 });
                 if (r.ok) {
                     this.authenticated = true;
+                    this.currentUser = this.username;
+                    this.username = '';
                     this.password = '';
                     this.readCSRFCookie();
                     // Defer WS open one tick so the browser commits Set-Cookie
@@ -320,7 +325,7 @@ function app() {
                     this.loadTabData();
                     this.loadUpdates();
                 } else {
-                    this.loginError = r.status === 429 ? 'Rate limited. Try again later.' : 'Invalid password';
+                    this.loginError = r.status === 429 ? 'Rate limited. Try again later.' : 'Invalid username or password';
                 }
             } catch (e) {
                 this.loginError = 'Network error';
@@ -353,6 +358,7 @@ function app() {
             if (this.pkgPollTimer) { clearInterval(this.pkgPollTimer); this.pkgPollTimer = null; }
             this.logsRunning = false;
             this.logLines = [];
+            this.currentUser = '';
         },
 
         // ── Navigation ────────────────────────────────────

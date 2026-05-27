@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/GehirnInc/crypt"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/apk"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/config"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/ipc"
@@ -148,6 +149,8 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleUserCreate(req)
 	case ipc.TypePasswordReset:
 		resp = b.handlePasswordReset(req)
+	case ipc.TypeLoginVerify:
+		resp = b.handleLoginVerify(req)
 	case ipc.TypeMount:
 		resp = b.handleMount(req)
 	case ipc.TypeUnmount:
@@ -762,6 +765,67 @@ func (b *broker) handleShutdown(req ipc.Envelope) ipc.Envelope {
 		_, _ = b.run(ctx, bin)
 	}
 	return b.ok(req, map[string]string{"status": "shutdown scheduled"})
+}
+
+// ── Authentication ─────────────────────────────────
+
+func (b *broker) handleLoginVerify(req ipc.Envelope) ipc.Envelope {
+	var body ipc.LoginVerifyReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.Username == "" {
+		return b.error(req, ipc.ErrInvalidRequest, "username required")
+	}
+
+	// Read shadow entry for the user
+	out, err := exec.Command("/usr/bin/getent", "shadow", body.Username).Output()
+	if err != nil {
+		out, err = exec.Command("/bin/getent", "shadow", body.Username).Output()
+	}
+	if err != nil {
+		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+	}
+	line := strings.TrimSpace(string(out))
+	parts := strings.Split(line, ":")
+	if len(parts) < 2 {
+		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+	}
+	hash := parts[1]
+	// Locked accounts: hash starts with ! or *
+	if hash == "" || hash == "!" || hash == "*" || strings.HasPrefix(hash, "!") || strings.HasPrefix(hash, "*") {
+		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+	}
+
+	// Verify password using Unix crypt
+	c, err := crypt.NewFromHash(hash)
+	if err != nil {
+		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+	}
+	if err := c.Verify(hash, body.Password); err != nil {
+		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+	}
+
+	// Get user's groups
+	groupsOut, err := exec.Command("/usr/bin/id", "-Gn", body.Username).Output()
+	if err != nil {
+		groupsOut, err = exec.Command("/bin/id", "-Gn", body.Username).Output()
+	}
+	var groups []string
+	if err == nil {
+		groups = strings.Fields(string(groupsOut))
+	}
+
+	// Determine role based on admin group membership
+	role := "read"
+	for _, g := range groups {
+		if g == b.cfg.AdminGroup {
+			role = "admin"
+			break
+		}
+	}
+
+	return b.ok(req, ipc.LoginVerifyResp{Valid: true, Role: role, Groups: groups})
 }
 
 // ── User Management ────────────────────────────────

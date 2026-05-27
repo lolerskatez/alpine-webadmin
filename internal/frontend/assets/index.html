@@ -22,7 +22,13 @@
                     <h1>Alpine WebAdmin</h1>
                     <p class="login-subtitle">System Management</p>
                     <form @submit.prevent="login()" aria-label="Authentication">
-                        <input type="text" style="display:none" autocomplete="username">
+                        <label for="username">Username</label>
+                        <input id="username" type="text" x-model="username"
+                               placeholder="Username" required
+                               autocomplete="username"
+                               aria-describedby="login-error"
+                               @keydown.enter="login()">
+
                         <label for="password">Password</label>
                         <input id="password" type="password" x-model="password"
                                placeholder="Enter password" required
@@ -194,6 +200,7 @@
 
                     <div class="sidebar-footer">
                         <span class="version" x-text="'v' + version"></span>
+                        <span class="user-label" x-text="currentUser" x-show="currentUser" style="font-size:11px;color:var(--text-muted);margin-bottom:0.25rem;"></span>
                         <button @click="logout()" class="logout-btn" aria-label="Sign out">
                             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>

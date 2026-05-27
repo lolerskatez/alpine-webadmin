@@ -144,6 +144,7 @@ func main() {
 		}
 
 		var req struct {
+			Username string `json:"username"`
 			Password string `json:"password"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -151,26 +152,64 @@ func main() {
 			return
 		}
 
-		if !auth.CheckPassword(req.Password, passwordHash) {
-			failedTracker.RecordFailure(ip)
-			logger.Warn("login failed", map[string]interface{}{"ip": ip})
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
+		// Try system user authentication first if username is provided
+		if req.Username != "" {
+			payload, _ := json.Marshal(ipc.LoginVerifyReq{Username: req.Username, Password: req.Password})
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			resp, err := ipcClient.Call(ctx, ipc.Envelope{
+				Version:     ipc.Version,
+				RequestID:   fmt.Sprintf("%d", time.Now().UnixNano()),
+				MessageType: ipc.TypeLoginVerify,
+				Payload:     payload,
+			})
+			cancel()
+			if err == nil && resp.MessageType == ipc.TypeResponseOK {
+				var verifyResp ipc.LoginVerifyResp
+				if unmarshalErr := json.Unmarshal(resp.Payload, &verifyResp); unmarshalErr == nil && verifyResp.Valid {
+					if verifyResp.Role == "admin" {
+						failedTracker.RecordSuccess(ip)
+						sid, err := sessionStore.CreateWithMetadata(req.Username, auth.RoleAdmin, ip, r.UserAgent())
+						if err != nil {
+							http.Error(w, "Internal error", http.StatusInternalServerError)
+							return
+						}
+						auth.SetSessionCookie(w, sid, cfg.SessionTTL)
+						csrfToken, _ := security.GenerateCSRFToken()
+						security.SetCSRFCookie(w, csrfToken)
+						logger.Info("login success", map[string]interface{}{"ip": ip, "user": req.Username})
+						w.WriteHeader(http.StatusNoContent)
+						return
+					}
+					// Valid system user but not in admin group
+					failedTracker.RecordFailure(ip)
+					logger.Warn("login failed: not in admin group", map[string]interface{}{"ip": ip, "user": req.Username})
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+					return
+				}
+			}
 		}
 
-		failedTracker.RecordSuccess(ip)
-		sid, err := sessionStore.CreateWithMetadata("admin", auth.RoleAdmin, ip, r.UserAgent())
-		if err != nil {
-			http.Error(w, "Internal error", http.StatusInternalServerError)
-			return
+		// Legacy fallback: config password hash (only for empty username or "admin")
+		if req.Username == "" || req.Username == "admin" {
+			if auth.CheckPassword(req.Password, passwordHash) {
+				failedTracker.RecordSuccess(ip)
+				sid, err := sessionStore.CreateWithMetadata("admin", auth.RoleAdmin, ip, r.UserAgent())
+				if err != nil {
+					http.Error(w, "Internal error", http.StatusInternalServerError)
+					return
+				}
+				auth.SetSessionCookie(w, sid, cfg.SessionTTL)
+				csrfToken, _ := security.GenerateCSRFToken()
+				security.SetCSRFCookie(w, csrfToken)
+				logger.Info("login success (legacy)", map[string]interface{}{"ip": ip})
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 		}
 
-		auth.SetSessionCookie(w, sid, cfg.SessionTTL)
-		csrfToken, _ := security.GenerateCSRFToken()
-		security.SetCSRFCookie(w, csrfToken)
-
-		logger.Info("login success", map[string]interface{}{"ip": ip})
-		w.WriteHeader(http.StatusNoContent)
+		failedTracker.RecordFailure(ip)
+		logger.Warn("login failed", map[string]interface{}{"ip": ip, "user": req.Username})
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 	})
 
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

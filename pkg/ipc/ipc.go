@@ -85,6 +85,17 @@ type PasswordResetReq struct {
 	Username string `json:"username"`
 }
 
+type LoginVerifyReq struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type LoginVerifyResp struct {
+	Valid  bool     `json:"valid"`
+	Role   string   `json:"role"`
+	Groups []string `json:"groups"`
+}
+
 type UserDeleteReq struct {
 	Username string `json:"username"`
 }
@@ -307,6 +318,7 @@ const (
 	TypeShutdown       = "cap.system.shutdown"
 	TypeUserCreate     = "cap.user.create"
 	TypePasswordReset  = "cap.user.password"
+	TypeLoginVerify    = "cap.auth.login"
 	TypeMount          = "cap.fs.mount"
 	TypeUnmount        = "cap.fs.unmount"
 	TypeKModLoad       = "cap.kmod.load"

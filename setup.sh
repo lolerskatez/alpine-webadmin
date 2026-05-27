@@ -567,6 +567,7 @@ create_config() {
   "ws_max_conns": 10,
   "rate_limit_rps": 20,
   "allowed_helpers": ["/sbin/rc-service", "/sbin/rc-status", "/sbin/apk"],
+  "admin_group": "wheel",
   "tls_cert": "/etc/webadmin/tls.crt",
   "tls_key": "/etc/webadmin/tls.key"
 }
