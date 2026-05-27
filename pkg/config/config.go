@@ -17,6 +17,7 @@ const (
 	DefaultWSMaxConns    = 10
 	DefaultWSMaxFrameSize = 65536
 	DefaultRateLimitRPS  = 20
+	DefaultAuditLogPath  = "/var/log/webadmin/webadmin.log"
 )
 
 // Config holds runtime configuration loaded from /etc/webadmin/config.json.
@@ -31,6 +32,7 @@ type Config struct {
 	WSMaxFrameSize int      `json:"ws_max_frame_size"`
 	RateLimitRPS   int      `json:"rate_limit_rps"`
 	AllowedHelpers []string `json:"allowed_helpers"`
+	AuditLogPath   string   `json:"audit_log_path,omitempty"`
 }
 
 // Load reads and validates a JSON config file.
@@ -77,6 +79,9 @@ func (c *Config) applyDefaults() error {
 	if c.RateLimitRPS == 0 {
 		c.RateLimitRPS = DefaultRateLimitRPS
 	}
+	if c.AuditLogPath == "" {
+		c.AuditLogPath = DefaultAuditLogPath
+	}
 	return nil
 }
 
@@ -116,4 +121,12 @@ func (c *Config) validate() error {
 	}
 
 	return nil
+}
+
+// Validate applies defaults and validates the configuration. Exported for runtime use.
+func (c *Config) Validate() error {
+	if err := c.applyDefaults(); err != nil {
+		return err
+	}
+	return c.validate()
 }

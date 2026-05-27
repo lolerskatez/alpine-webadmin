@@ -147,6 +147,19 @@ function app() {
         showLbuRestore: false,
         lbuRestoreBackup: '',
 
+        // ── Audit Log ─────────────────────────────────────
+        auditLog: [],
+        auditLogLoading: false,
+
+        // ── SSH Keys ──────────────────────────────────────
+        sshKeysContent: '',
+        showSshKeys: false,
+        sshKeysUser: '',
+
+        // ── Resolv ────────────────────────────────────────
+        resolvContent: '',
+        showResolvEdit: false,
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -268,6 +281,7 @@ function app() {
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
+                case 'audit': this.loadAuditLog(); break;
             }
         },
 
@@ -1345,6 +1359,113 @@ function app() {
             } catch (e) {
                 this.showAlert(`${action} failed`, 'error');
             }
+        },
+
+        // ── Audit Log ─────────────────────────────────────
+        async loadAuditLog() {
+            this.auditLogLoading = true;
+            try {
+                const r = await fetch('/api/audit?limit=500', { credentials: 'same-origin' });
+                if (!r.ok) { this.auditLog = []; return; }
+                this.auditLog = await r.json();
+            } catch (e) { this.auditLog = []; }
+            finally { this.auditLogLoading = false; }
+        },
+
+        // ── SSH Keys ──────────────────────────────────────
+        openSshKeys(username) {
+            this.sshKeysUser = username;
+            this.sshKeysContent = '';
+            this.showSshKeys = true;
+            this.loadSshKeys(username);
+        },
+
+        closeSshKeys() {
+            this.showSshKeys = false;
+            this.sshKeysUser = '';
+            this.sshKeysContent = '';
+        },
+
+        async loadSshKeys(username) {
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(username)}/ssh-keys`, { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.sshKeysContent = data.content || '';
+            } catch (e) { /* silent */ }
+        },
+
+        async saveSshKeys() {
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(this.sshKeysUser)}/ssh-keys`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.sshKeysContent })
+                });
+                if (r.ok) {
+                    this.showAlert('SSH keys saved', 'success');
+                    this.showSshKeys = false;
+                } else {
+                    const err = await r.text();
+                    this.showAlert('SSH keys save failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('SSH keys save failed', 'error'); }
+        },
+
+        // ── Resolv ────────────────────────────────────────
+        async loadResolv() {
+            try {
+                const r = await fetch('/api/system/resolv', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.resolvContent = data.content || '';
+            } catch (e) { /* silent */ }
+        },
+
+        async saveResolv() {
+            try {
+                const r = await fetch('/api/system/resolv', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.resolvContent })
+                });
+                if (r.ok) { this.showAlert('resolv.conf saved', 'success'); this.showResolvEdit = false; }
+                else { const err = await r.text(); this.showAlert('resolv.conf save failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('resolv.conf save failed', 'error'); }
+        },
+
+        // ── Config Export/Import ──────────────────────────
+        async exportConfig() {
+            try {
+                const r = await fetch('/api/config/export', { credentials: 'same-origin' });
+                if (!r.ok) { this.showAlert('Export failed', 'error'); return; }
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'config.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (e) { this.showAlert('Export failed', 'error'); }
+        },
+
+        async importConfig(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const r = await fetch('/api/config/import', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: text
+                });
+                if (r.ok) { this.showAlert('Config imported', 'success'); }
+                else { const err = await r.text(); this.showAlert('Import failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('Import failed', 'error'); }
+            finally { event.target.value = ''; }
         },
 
         // ── Alerts ────────────────────────────────────────

@@ -189,6 +189,21 @@ type HostnameSetReq struct {
 	Hostname string `json:"hostname"`
 }
 
+type SshKeysReadReq struct {
+	Username string `json:"username"`
+}
+
+type SshKeysWriteReq struct {
+	Username string `json:"username"`
+	Content  string `json:"content"`
+}
+
+type ResolvReadReq struct{}
+
+type ResolvWriteReq struct {
+	Content string `json:"content"`
+}
+
 // ── OK Response Payloads ───────────────────────────
 
 type ServiceListData struct {
@@ -318,6 +333,10 @@ const (
 	TypeLbuStatus       = "cap.lbu.status"
 	TypeLbuList         = "cap.lbu.list"
 	TypeLbuRestore      = "cap.lbu.restore"
+	TypeSshKeysRead     = "cap.ssh.keys.read"
+	TypeSshKeysWrite    = "cap.ssh.keys.write"
+	TypeResolvRead      = "cap.resolv.read"
+	TypeResolvWrite     = "cap.resolv.write"
 	TypeResponseOK      = "response.ok"
 	TypeResponseError   = "response.error"
 )

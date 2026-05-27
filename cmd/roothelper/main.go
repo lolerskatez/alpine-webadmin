@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -202,6 +204,10 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleLbuList(req)
 	case ipc.TypeLbuRestore:
 		resp = b.handleLbuRestore(req)
+	case ipc.TypeSshKeysRead:
+		resp = b.handleSshKeysRead(req)
+	case ipc.TypeSshKeysWrite:
+		resp = b.handleSshKeysWrite(req)
 	default:
 		resp = b.error(req, ipc.ErrInvalidRequest, "unknown message type")
 	}
@@ -1332,6 +1338,60 @@ func (b *broker) handleLbuRestore(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrExecutionFailed, string(out))
 	}
 	return b.ok(req, map[string]string{"status": "restored", "backup": body.Backup})
+}
+
+func (b *broker) handleSshKeysRead(req ipc.Envelope) ipc.Envelope {
+	var body ipc.SshKeysReadReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	usr, err := user.Lookup(body.Username)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, "user lookup failed: "+err.Error())
+	}
+	path := filepath.Join(usr.HomeDir, ".ssh", "authorized_keys")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return b.ok(req, map[string]string{"content": ""})
+		}
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"content": string(data)})
+}
+
+func (b *broker) handleSshKeysWrite(req ipc.Envelope) ipc.Envelope {
+	var body ipc.SshKeysWriteReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	usr, err := user.Lookup(body.Username)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, "user lookup failed: "+err.Error())
+	}
+	sshDir := filepath.Join(usr.HomeDir, ".ssh")
+	path := filepath.Join(sshDir, "authorized_keys")
+	if err := os.MkdirAll(sshDir, 0700); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	if err := os.WriteFile(path, []byte(body.Content), 0600); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	uid, _ := strconv.Atoi(usr.Uid)
+	gid, _ := strconv.Atoi(usr.Gid)
+	if err := os.Chown(sshDir, uid, gid); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	if err := os.Chown(path, uid, gid); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"status": "saved", "username": body.Username})
 }
 
 // generateRandomPassword creates a 16-char alphanumeric temporary password.

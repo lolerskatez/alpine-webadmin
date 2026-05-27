@@ -696,6 +696,23 @@ func main() {
 			forwardIPC(w, r, ipcClient, ipc.TypeShellChange, payload)
 			return
 		}
+		if action == "ssh-keys" {
+			if r.Method == http.MethodGet {
+				payload, _ := json.Marshal(ipc.SshKeysReadReq{Username: username})
+				forwardIPC(w, r, ipcClient, ipc.TypeSshKeysRead, payload)
+				return
+			}
+			if r.Method == http.MethodPost {
+				var body ipc.SshKeysWriteReq
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					http.Error(w, "Bad request", http.StatusBadRequest)
+					return
+				}
+				payload, _ := json.Marshal(ipc.SshKeysWriteReq{Username: username, Content: body.Content})
+				forwardIPC(w, r, ipcClient, ipc.TypeSshKeysWrite, payload)
+				return
+			}
+		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))))
 
@@ -1305,6 +1322,117 @@ func main() {
 		<-done
 		conn.Close()
 	})))
+
+	// Audit log endpoint (reads last N lines from configured audit log)
+	mux.Handle("/api/audit", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		limitStr := r.URL.Query().Get("limit")
+		limit := 500
+		if limitStr != "" {
+			if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 5000 {
+				limit = n
+			}
+		}
+		data, err := os.ReadFile(cfg.AuditLogPath)
+		if err != nil {
+			http.Error(w, "Audit log unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		lines := strings.Split(string(data), "\n")
+		var entries []map[string]interface{}
+		start := 0
+		if len(lines) > limit {
+			start = len(lines) - limit
+		}
+		for i := start; i < len(lines); i++ {
+			line := strings.TrimSpace(lines[i])
+			if line == "" {
+				continue
+			}
+			var entry map[string]interface{}
+			if err := json.Unmarshal([]byte(line), &entry); err == nil {
+				entries = append(entries, entry)
+			} else {
+				entries = append(entries, map[string]interface{}{"raw": line})
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(entries)
+	})))
+
+	// resolv.conf editor
+	mux.Handle("/api/system/resolv", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			data, err := os.ReadFile("/etc/resolv.conf")
+			if err != nil {
+				http.Error(w, "Not available", http.StatusServiceUnavailable)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
+			return
+		}
+		if r.Method == http.MethodPost {
+			var body ipc.ResolvWriteReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			if err := os.WriteFile("/etc/resolv.conf", []byte(body.Content), 0644); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+
+	// Config export
+	mux.Handle("/api/config/export", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, err := os.ReadFile(*configPath)
+		if err != nil {
+			http.Error(w, "Config unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Disposition", "attachment; filename=\"config.json\"")
+		w.Write(data)
+	})))
+
+	// Config import
+	mux.Handle("/api/config/import", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var incoming config.Config
+		if err := json.NewDecoder(r.Body).Decode(&incoming); err != nil {
+			http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := incoming.Validate(); err != nil {
+			http.Error(w, "Validation failed: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		data, err := json.MarshalIndent(incoming, "", "  ")
+		if err != nil {
+			http.Error(w, "Serialization failed", http.StatusInternalServerError)
+			return
+		}
+		if err := os.WriteFile(*configPath, data, 0640); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))))
 
 	// ── Server with middleware ─────────────────────────
 	handler := requestLogger(logger)(mux)
