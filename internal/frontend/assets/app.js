@@ -129,6 +129,24 @@ function app() {
         newGroupName: '',
         showGroupManage: false,
 
+        // ── System Alerts ─────────────────────────────────
+        systemAlerts: [],
+        systemAlertsLoading: false,
+
+        // ── Block Devices ─────────────────────────────────
+        blockDevices: [],
+
+        // ── Shell Change ────────────────────────────────────
+        newShell: '',
+        showShellChange: false,
+        shellChangeUser: '',
+
+        // ── LBU ───────────────────────────────────────────
+        lbuStatus: '',
+        lbuBackups: [],
+        showLbuRestore: false,
+        lbuRestoreBackup: '',
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -140,6 +158,7 @@ function app() {
         // ── Init ──────────────────────────────────────────
         initApp() {
             this.checkSession();
+            this.loadSystemAlerts();
         },
 
         async loadUpdates() {
@@ -237,14 +256,15 @@ function app() {
 
         loadTabData() {
             switch (this.tab) {
+                case 'dashboard': this.loadSystemAlerts(); break;
                 case 'services': this.loadServices(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
                 case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); break;
-                case 'storage': this.loadStorage(); this.loadFstab(); break;
+                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -1191,6 +1211,122 @@ function app() {
             this.groupManageUser = '';
             this.userGroups = [];
             this.newGroupName = '';
+        },
+
+        // ── System Alerts ─────────────────────────────────
+        async loadSystemAlerts() {
+            this.systemAlertsLoading = true;
+            try {
+                const r = await fetch('/api/alerts', { credentials: 'same-origin' });
+                if (!r.ok) { this.systemAlerts = []; return; }
+                this.systemAlerts = await r.json();
+            } catch (e) { this.systemAlerts = []; }
+            finally { this.systemAlertsLoading = false; }
+        },
+
+        // ── Block Devices ─────────────────────────────────
+        async loadBlockDevices() {
+            try {
+                const r = await fetch('/api/storage/devices', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.blockDevices = this.parseLsblk(data);
+            } catch (e) { this.showAlert('Failed to load block devices', 'error'); }
+        },
+
+        parseLsblk(data) {
+            if (!data || !data.blockdevices) return [];
+            const result = [];
+            const walk = (devices) => {
+                for (const d of devices) {
+                    result.push({
+                        name: d.name || '',
+                        size: d.size || '',
+                        type: d.type || '',
+                        mountpoint: d.mountpoint || '',
+                        model: d.model || '',
+                    });
+                    if (d.children) walk(d.children);
+                }
+            };
+            walk(data.blockdevices);
+            return result;
+        },
+
+        // ── Shell Change ────────────────────────────────────
+        openShellChange(username, currentShell) {
+            this.shellChangeUser = username;
+            this.newShell = currentShell || '/bin/sh';
+            this.showShellChange = true;
+        },
+
+        closeShellChange() {
+            this.showShellChange = false;
+            this.shellChangeUser = '';
+            this.newShell = '';
+        },
+
+        async saveShell() {
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(this.shellChangeUser)}/shell`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ shell: this.newShell })
+                });
+                if (r.ok) {
+                    this.showAlert('Shell changed', 'success');
+                    this.showShellChange = false;
+                    this.loadUsers();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Shell change failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Shell change failed', 'error'); }
+        },
+
+        // ── LBU ───────────────────────────────────────────
+        async loadLbu() {
+            try {
+                const r1 = await fetch('/api/lbu/status', { credentials: 'same-origin' });
+                if (r1.ok) {
+                    const data = await r1.json();
+                    this.lbuStatus = data.output || data.status || '';
+                }
+                const r2 = await fetch('/api/lbu/list', { credentials: 'same-origin' });
+                if (r2.ok) {
+                    const data = await r2.json();
+                    this.lbuBackups = data.backups || [];
+                }
+            } catch (e) { /* silent */ }
+        },
+
+        async lbuCommit() {
+            if (!confirm('Commit current configuration to LBU backup?')) return;
+            try {
+                const r = await fetch('/api/lbu/commit', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: '{}'
+                });
+                if (r.ok) { this.showAlert('LBU commit succeeded', 'success'); this.loadLbu(); }
+                else { const err = await r.text(); this.showAlert('LBU commit failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('LBU commit failed', 'error'); }
+        },
+
+        async lbuRestore(backup) {
+            if (!confirm(`Restore LBU backup ${backup}?`)) return;
+            try {
+                const r = await fetch('/api/lbu/restore', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ backup })
+                });
+                if (r.ok) { this.showAlert('LBU restore succeeded', 'success'); this.loadLbu(); }
+                else { const err = await r.text(); this.showAlert('LBU restore failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('LBU restore failed', 'error'); }
         },
 
         async powerAction(action) {

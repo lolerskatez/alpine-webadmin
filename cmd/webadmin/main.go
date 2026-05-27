@@ -686,6 +686,16 @@ func main() {
 				return
 			}
 		}
+		if r.Method == http.MethodPost && action == "shell" {
+			var body ipc.ShellChangeReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			payload, _ := json.Marshal(ipc.ShellChangeReq{Username: username, Shell: body.Shell})
+			forwardIPC(w, r, ipcClient, ipc.TypeShellChange, payload)
+			return
+		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))))
 
@@ -714,6 +724,66 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(groups)
 	})))
+
+	mux.Handle("/api/storage/devices", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		lsblkBin := findBin("lsblk", "/bin/lsblk", "/usr/bin/lsblk", "/sbin/lsblk")
+		out, err := exec.Command(lsblkBin, "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,MODEL").Output()
+		if err != nil {
+			// fallback to plain text
+			out, err = exec.Command(lsblkBin, "-o", "NAME,SIZE,TYPE,MOUNTPOINT,MODEL").Output()
+			if err != nil {
+				http.Error(w, "lsblk failed", http.StatusServiceUnavailable)
+				return
+			}
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write(out)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(out)
+	})))
+
+	mux.Handle("/api/lbu/commit", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		forwardIPC(w, r, ipcClient, ipc.TypeLbuCommit, []byte("{}"))
+	}))))
+
+	mux.Handle("/api/lbu/status", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		forwardIPC(w, r, ipcClient, ipc.TypeLbuStatus, []byte("{}"))
+	})))
+
+	mux.Handle("/api/lbu/list", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		forwardIPC(w, r, ipcClient, ipc.TypeLbuList, []byte("{}"))
+	})))
+
+	mux.Handle("/api/lbu/restore", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body ipc.LbuRestoreReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(body)
+		forwardIPC(w, r, ipcClient, ipc.TypeLbuRestore, payload)
+	}))))
 
 	mux.Handle("/api/mount", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

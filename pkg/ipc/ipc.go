@@ -152,6 +152,21 @@ type UserGroupReq struct {
 	Group    string `json:"group"`
 }
 
+type ShellChangeReq struct {
+	Username string `json:"username"`
+	Shell    string `json:"shell"`
+}
+
+type LbuCommitReq struct{}
+
+type LbuStatusReq struct{}
+
+type LbuListReq struct{}
+
+type LbuRestoreReq struct {
+	Backup string `json:"backup"`
+}
+
 type MountReq struct {
 	Device     string `json:"device"`
 	Mountpoint string `json:"mountpoint"`
@@ -296,8 +311,13 @@ const (
 	TypeTimezoneSet    = "cap.timezone.set"
 	TypeNtpSet         = "cap.ntp.set"
 	TypeServiceLogRead = "cap.service.log.read"
-	TypeUserGroupAdd   = "cap.user.group.add"
+	TypeUserGroupAdd    = "cap.user.group.add"
 	TypeUserGroupRemove = "cap.user.group.remove"
-	TypeResponseOK     = "response.ok"
-	TypeResponseError  = "response.error"
+	TypeShellChange     = "cap.user.shell"
+	TypeLbuCommit       = "cap.lbu.commit"
+	TypeLbuStatus       = "cap.lbu.status"
+	TypeLbuList         = "cap.lbu.list"
+	TypeLbuRestore      = "cap.lbu.restore"
+	TypeResponseOK      = "response.ok"
+	TypeResponseError   = "response.error"
 )

@@ -287,6 +287,26 @@
                                 <div class="metric-value" x-text="updatesCount"></div>
                                 <div class="metric-sub" x-text="updatesCount > 0 ? 'packages available' : 'system up to date'"></div>
                             </div>
+
+                            <div class="metric-card" tabindex="0" @click="switchTab('dashboard'); loadSystemAlerts();" style="cursor:pointer">
+                                <div class="metric-header">
+                                    <span class="metric-label">Alerts</span>
+                                </div>
+                                <div class="metric-value" x-text="systemAlerts.filter(a => a.level !== 'info').length"></div>
+                                <div class="metric-sub" x-text="systemAlerts.length > 0 ? (systemAlerts.some(a => a.level === 'error') ? 'critical' : 'warning') : 'all clear'"></div>
+                            </div>
+                        </div>
+
+                        <div class="panel" x-show="systemAlerts.length > 0 && systemAlerts.some(a => a.level !== 'info')">
+                            <div class="panel-header"><h3>System Alerts</h3></div>
+                            <div class="panel-body">
+                                <template x-for="alert in systemAlerts" :key="alert.timestamp + alert.message">
+                                    <div class="alert" :class="'alert-' + alert.level" role="alert" style="margin-bottom:0.5rem;">
+                                        <span class="alert-icon" x-text="alert.level === 'error' ? '!' : (alert.level === 'warning' ? '!' : 'i')"></span>
+                                        <span x-text="alert.message"></span>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
 
                         <div class="panel">
@@ -763,6 +783,37 @@
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:300px;white-space:pre-wrap;" x-text="fstabContent || 'No fstab entries.'"></pre>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Block Devices</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Block devices">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Name</th>
+                                            <th role="columnheader">Size</th>
+                                            <th role="columnheader">Type</th>
+                                            <th role="columnheader">Mountpoint</th>
+                                            <th role="columnheader">Model</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="dev in blockDevices" :key="dev.name">
+                                            <tr role="row">
+                                                <td role="cell" x-text="dev.name" class="mono"></td>
+                                                <td role="cell" x-text="dev.size"></td>
+                                                <td role="cell">
+                                                    <span class="badge badge-subtle" x-text="dev.type"></span>
+                                                </td>
+                                                <td role="cell" x-text="dev.mountpoint || '-'" class="mono"></td>
+                                                <td role="cell" x-text="dev.model || '-'" style="font-size:12px;"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="blockDevices.length === 0" class="empty-state">No block device data available.</div>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ USERS ============ -->
@@ -849,6 +900,10 @@
                                                             @click="showGroupManageModal(u.username)"
                                                             :disabled="u._loading"
                                                             :aria-label="'Manage groups for ' + u.username">Groups</button>
+                                                    <button class="btn btn-sm btn-secondary"
+                                                            @click="openShellChange(u.username, u.shell)"
+                                                            :disabled="u._loading"
+                                                            :aria-label="'Change shell for ' + u.username">Shell</button>
                                                 </td>
                                             </tr>
                                         </template>
@@ -887,6 +942,26 @@
                                 </div>
                                 <div class="modal-actions">
                                     <button @click="closeGroupManage()" class="btn btn-secondary">Close</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Shell change modal -->
+                        <div x-show="showShellChange" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shell-title">
+                            <div class="modal" style="max-width:500px;">
+                                <div class="modal-header">
+                                    <h3 id="shell-title" x-text="'Change Shell: ' + shellChangeUser"></h3>
+                                    <button @click="closeShellChange()" class="modal-close" aria-label="Close dialog">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-row">
+                                        <label for="shell-input">Shell</label>
+                                        <input id="shell-input" type="text" x-model="newShell" placeholder="/bin/sh" @keydown.enter="saveShell()">
+                                    </div>
+                                </div>
+                                <div class="modal-actions">
+                                    <button @click="saveShell()" class="btn">Save</button>
+                                    <button @click="closeShellChange()" class="btn btn-secondary">Cancel</button>
                                 </div>
                             </div>
                         </div>
@@ -1291,6 +1366,40 @@
                                         <button @click="powerAction('shutdown')" class="btn btn-danger">Shutdown</button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Alpine Backup (LBU)</h3></div>
+                            <div class="panel-body">
+                                <div class="toolbar">
+                                    <button @click="lbuCommit()" class="btn">Commit</button>
+                                    <button @click="loadLbu()" class="btn btn-secondary">Refresh</button>
+                                </div>
+                                <pre x-show="lbuStatus" style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:150px;white-space:pre-wrap;word-break:break-all;" x-text="lbuStatus"></pre>
+                                <div x-show="!lbuStatus" class="empty-state" style="padding:0.5rem;">No LBU status available.</div>
+                                <div style="margin-top:1rem;" x-show="lbuBackups.length > 0">
+                                    <h4 style="font-size:14px;margin-bottom:0.5rem;color:var(--text-secondary);">Backups</h4>
+                                    <table class="data-table" role="table" aria-label="LBU backups">
+                                        <thead>
+                                            <tr role="row">
+                                                <th role="columnheader">Backup</th>
+                                                <th role="columnheader" class="actions-col">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="b in lbuBackups" :key="b">
+                                                <tr role="row">
+                                                    <td role="cell" x-text="b" class="mono"></td>
+                                                    <td role="cell" class="actions-col">
+                                                        <button @click="lbuRestore(b)" class="btn btn-sm">Restore</button>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div x-show="lbuBackups.length === 0" class="empty-state" style="padding:0.5rem;">No backups found.</div>
                             </div>
                         </div>
                     </section>

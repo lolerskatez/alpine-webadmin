@@ -192,6 +192,16 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleUserGroupAdd(req)
 	case ipc.TypeUserGroupRemove:
 		resp = b.handleUserGroupRemove(req)
+	case ipc.TypeShellChange:
+		resp = b.handleShellChange(req)
+	case ipc.TypeLbuCommit:
+		resp = b.handleLbuCommit(req)
+	case ipc.TypeLbuStatus:
+		resp = b.handleLbuStatus(req)
+	case ipc.TypeLbuList:
+		resp = b.handleLbuList(req)
+	case ipc.TypeLbuRestore:
+		resp = b.handleLbuRestore(req)
 	default:
 		resp = b.error(req, ipc.ErrInvalidRequest, "unknown message type")
 	}
@@ -1225,6 +1235,103 @@ func (b *broker) validateGroup(name string) error {
 		return fmt.Errorf("invalid group name")
 	}
 	return nil
+}
+
+// ── User Shell Change ────────────────────────────
+
+func (b *broker) handleShellChange(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/usr/bin/chsh") && !b.checkAllow("/bin/chsh") {
+		return b.error(req, ipc.ErrCapabilityDenied, "shell change not allowed")
+	}
+	var body ipc.ShellChangeReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.Shell == "" || !strings.HasPrefix(body.Shell, "/") || strings.Contains(body.Shell, "..") {
+		return b.error(req, ipc.ErrInvalidRequest, "invalid shell path")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/usr/sbin/usermod", "-s", body.Shell, body.Username)
+	if err != nil {
+		// fallback to chsh if usermod fails
+		out, err = b.run(ctx, "/usr/bin/chsh", "-s", body.Shell, body.Username)
+		if err != nil {
+			return b.error(req, ipc.ErrExecutionFailed, string(out))
+		}
+	}
+	return b.ok(req, map[string]string{"username": body.Username, "shell": body.Shell, "status": "changed"})
+}
+
+// ── LBU Backup / Restore ───────────────────────────
+
+func (b *broker) handleLbuCommit(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/lbu") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/lbu not allowed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/lbu", "commit")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"status": "committed", "output": string(out)})
+}
+
+func (b *broker) handleLbuStatus(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/lbu") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/lbu not allowed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/lbu", "status")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"status": "ok", "output": string(out)})
+}
+
+func (b *broker) handleLbuList(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/lbu") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/lbu not allowed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/lbu", "list-backup")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	backups := []string{}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			backups = append(backups, line)
+		}
+	}
+	return b.ok(req, map[string]interface{}{"backups": backups})
+}
+
+func (b *broker) handleLbuRestore(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/lbu") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/lbu not allowed")
+	}
+	var body ipc.LbuRestoreReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.Backup == "" || strings.Contains(body.Backup, "..") || strings.Contains(body.Backup, "/") {
+		return b.error(req, ipc.ErrInvalidRequest, "invalid backup name")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/lbu", "restore", body.Backup)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"status": "restored", "backup": body.Backup})
 }
 
 // generateRandomPassword creates a 16-char alphanumeric temporary password.
