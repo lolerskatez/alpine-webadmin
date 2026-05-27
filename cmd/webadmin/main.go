@@ -279,6 +279,23 @@ func main() {
 		forwardIPC(w, r, ipcClient, ipc.TypeHostnameSet, payload)
 	}))))
 
+	mux.Handle("/api/system/updates", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		count := 0
+		if out, err := exec.Command("apk", "list", "--upgradable").Output(); err == nil {
+			for _, line := range strings.Split(string(out), "\n") {
+				if strings.TrimSpace(line) != "" {
+					count++
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"count": count, "upgradable": count > 0})
+	})))
+
 	mux.Handle("/api/packages", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -498,6 +515,11 @@ func main() {
 			forwardIPC(w, r, ipcClient, ipc.TypePasswordReset, payload)
 			return
 		}
+		if r.Method == http.MethodPost && action == "delete" {
+			payload, _ := json.Marshal(ipc.UserDeleteReq{Username: username})
+			forwardIPC(w, r, ipcClient, ipc.TypeUserDelete, payload)
+			return
+		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))))
 
@@ -528,6 +550,70 @@ func main() {
 		payload, _ := json.Marshal(body)
 		forwardIPC(w, r, ipcClient, ipc.TypeUnmount, payload)
 	}))))
+
+	mux.Handle("/api/kmod/list", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var modules []string
+		if data, err := os.ReadFile("/proc/modules"); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				fields := strings.Fields(line)
+				if len(fields) > 0 && fields[0] != "" {
+					modules = append(modules, fields[0])
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(modules)
+	})))
+
+	mux.Handle("/api/kmod/load", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body ipc.KModLoadReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(body)
+		forwardIPC(w, r, ipcClient, ipc.TypeKModLoad, payload)
+	}))))
+
+	mux.Handle("/api/kmod/unload", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body ipc.KModUnloadReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(body)
+		forwardIPC(w, r, ipcClient, ipc.TypeKModUnload, payload)
+	}))))
+
+	mux.Handle("/api/apk/repositories", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			forwardIPC(w, r, ipcClient, ipc.TypeApkRepoRead, []byte("{}"))
+			return
+		}
+		if r.Method == http.MethodPost {
+			var body ipc.ApkRepoWriteReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			payload, _ := json.Marshal(body)
+			forwardIPC(w, r, ipcClient, ipc.TypeApkRepoWrite, payload)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
 
 	mux.Handle("/api/sessions", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

@@ -85,6 +85,16 @@ type PasswordResetReq struct {
 	Username string `json:"username"`
 }
 
+type UserDeleteReq struct {
+	Username string `json:"username"`
+}
+
+type ApkRepoReadReq struct{}
+
+type ApkRepoWriteReq struct {
+	Content string `json:"content"`
+}
+
 type MountReq struct {
 	Device     string `json:"device"`
 	Mountpoint string `json:"mountpoint"`
@@ -211,6 +221,9 @@ const (
 	TypeKModLoad       = "cap.kmod.load"
 	TypeKModUnload     = "cap.kmod.unload"
 	TypeHostnameSet    = "cap.system.hostname"
+	TypeUserDelete     = "cap.user.delete"
+	TypeApkRepoRead    = "cap.apk.repo.read"
+	TypeApkRepoWrite   = "cap.apk.repo.write"
 	TypeResponseOK     = "response.ok"
 	TypeResponseError  = "response.error"
 )

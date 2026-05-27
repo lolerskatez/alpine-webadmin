@@ -152,6 +152,12 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleKModUnload(req)
 	case ipc.TypeHostnameSet:
 		resp = b.handleHostnameSet(req)
+	case ipc.TypeUserDelete:
+		resp = b.handleUserDelete(req)
+	case ipc.TypeApkRepoRead:
+		resp = b.handleApkRepoRead(req)
+	case ipc.TypeApkRepoWrite:
+		resp = b.handleApkRepoWrite(req)
 	default:
 		resp = b.error(req, ipc.ErrInvalidRequest, "unknown message type")
 	}
@@ -703,6 +709,45 @@ func (b *broker) handlePasswordReset(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrExecutionFailed, string(out))
 	}
 	return b.ok(req, map[string]string{"username": body.Username, "status": "password reset", "temporary": pass})
+}
+
+func (b *broker) handleUserDelete(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/deluser") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/deluser not allowed")
+	}
+	var body ipc.UserDeleteReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/deluser", body.Username)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"username": body.Username, "status": "deleted"})
+}
+
+func (b *broker) handleApkRepoRead(req ipc.Envelope) ipc.Envelope {
+	data, err := os.ReadFile("/etc/apk/repositories")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"content": string(data)})
+}
+
+func (b *broker) handleApkRepoWrite(req ipc.Envelope) ipc.Envelope {
+	var body ipc.ApkRepoWriteReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := os.WriteFile("/etc/apk/repositories", []byte(body.Content), 0644); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"status": "written"})
 }
 
 // ── Mount / Unmount ──────────────────────────────

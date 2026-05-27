@@ -120,6 +120,15 @@
                         </li>
                         <li role="none">
                             <button role="menuitem"
+                                    @click="switchTab('modules')"
+                                    :class="{active: tab==='modules'}"
+                                    :aria-current="tab==='modules' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                                Modules
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
                                     @click="switchTab('users')"
                                     :class="{active: tab==='users'}"
                                     :aria-current="tab==='users' ? 'page' : null">
@@ -251,6 +260,14 @@
                                 </div>
                                 <div class="metric-value" x-text="diskUsedPercent() + '%'"></div>
                                 <div class="metric-sub">avg usage</div>
+                            </div>
+
+                            <div class="metric-card" tabindex="0" @click="switchTab('packages')" style="cursor:pointer">
+                                <div class="metric-header">
+                                    <span class="metric-label">Updates</span>
+                                </div>
+                                <div class="metric-value" x-text="updatesCount"></div>
+                                <div class="metric-sub" x-text="updatesCount > 0 ? 'packages available' : 'system up to date'"></div>
                             </div>
                         </div>
 
@@ -438,6 +455,20 @@
                             <div class="toolbar-group">
                                 <button @click="packageAction('update')" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Update index">Update Index</button>
                                 <button @click="packageAction('upgrade')" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Upgrade all">Upgrade All</button>
+                                <button @click="showApkRepoEdit = true" class="btn btn-secondary" aria-label="Edit repositories">Repositories</button>
+                            </div>
+                        </div>
+
+                        <div x-show="showApkRepoEdit" class="panel">
+                            <div class="panel-header"><h3>APK Repositories</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row">
+                                    <textarea x-model="apkRepos" rows="8" style="width:100%;font-family:monospace;font-size:12px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:0.5rem;" placeholder="https://dl-cdn.alpinelinux.org/alpine/v3.19/main&#10;https://dl-cdn.alpinelinux.org/alpine/v3.19/community"></textarea>
+                                </div>
+                                <div class="btn-group">
+                                    <button @click="saveApkRepos()" class="btn">Save</button>
+                                    <button @click="showApkRepoEdit = false" class="btn btn-secondary">Cancel</button>
+                                </div>
                             </div>
                         </div>
 
@@ -710,6 +741,10 @@
                                                             @click="resetPassword(u.username)"
                                                             :disabled="u._loading"
                                                             :aria-label="'Reset password for ' + u.username">Reset Password</button>
+                                                    <button class="btn btn-sm btn-danger"
+                                                            @click="deleteUser(u.username)"
+                                                            :disabled="u._loading"
+                                                            :aria-label="'Delete user ' + u.username">Delete</button>
                                                 </td>
                                             </tr>
                                         </template>
@@ -807,6 +842,59 @@
                                     </tbody>
                                 </table>
                                 <div x-show="sessions.length === 0" class="empty-state">No active sessions.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ MODULES ============ -->
+                    <section x-show="tab === 'modules'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="modules-heading">
+                        <h2 id="modules-heading" class="section-title">Kernel Modules</h2>
+
+                        <div class="toolbar">
+                            <button @click="loadKMod()" class="btn" aria-label="Refresh modules">Refresh</button>
+                            <button @click="showKModForm = true" class="btn btn-secondary" aria-label="Load module">Load Module</button>
+                        </div>
+
+                        <div x-show="showKModForm" class="panel">
+                            <div class="panel-header"><h3>Load Module</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row">
+                                    <label for="kmod-name">Module name</label>
+                                    <input id="kmod-name" type="text" x-model="kmodForm.module" placeholder="ext4">
+                                </div>
+                                <div class="btn-group">
+                                    <button @click="loadModule()" class="btn">Load</button>
+                                    <button @click="showKModForm = false" class="btn btn-secondary">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Loaded Modules</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Kernel modules">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Module</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="mod in kmodModules" :key="mod">
+                                            <tr role="row">
+                                                <td role="cell" x-text="mod"></td>
+                                                <td role="cell" class="actions-col">
+                                                    <button @click="unloadModule(mod)" class="btn btn-sm btn-danger" aria-label="Unload module">Unload</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="kmodModules.length === 0" class="empty-state">No module data available.</div>
                             </div>
                         </div>
                     </section>

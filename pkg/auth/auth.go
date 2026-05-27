@@ -205,11 +205,21 @@ func (s *Store) RevokeAllForUser(username string) int {
 }
 
 // RequireAuth returns middleware that enforces session authentication.
+// If the session was created with ClientIP/UserAgent metadata, requests must match.
 func RequireAuth(store *Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			sid := SessionFromRequest(r)
-			if _, ok := store.Get(sid); !ok {
+			sess, ok := store.Get(sid)
+			if !ok {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if sess.ClientIP != "" && sess.ClientIP != r.RemoteAddr {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if sess.UserAgent != "" && sess.UserAgent != r.UserAgent() {
 				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}

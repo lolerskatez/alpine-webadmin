@@ -74,6 +74,16 @@ function app() {
         sysInfo: {},
         newHostname: '',
         showHostnameEdit: false,
+        updatesCount: 0,
+
+        // ── Kernel Modules ────────────────────────────────
+        kmodModules: [],
+        showKModForm: false,
+        kmodForm: { module: '' },
+
+        // ── APK Repositories ──────────────────────────────
+        apkRepos: '',
+        showApkRepoEdit: false,
 
         // ── Alerts ────────────────────────────────────────
         alerts: [],
@@ -88,6 +98,15 @@ function app() {
             this.checkSession();
         },
 
+        async loadUpdates() {
+            try {
+                const r = await fetch('/api/system/updates', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.updatesCount = data.count || 0;
+            } catch (e) { /* silent */ }
+        },
+
         // ── Session ───────────────────────────────────────
         async checkSession() {
             try {
@@ -98,6 +117,7 @@ function app() {
                     this.readCSRFCookie();
                     this.initWS();
                     this.loadTabData();
+                    this.loadUpdates();
                 }
             } catch (e) {
                 // not authenticated
@@ -122,6 +142,7 @@ function app() {
                     // before the WebSocket upgrade request is sent.
                     setTimeout(() => this.initWS(), 0);
                     this.loadTabData();
+                    this.loadUpdates();
                 } else {
                     this.loginError = r.status === 429 ? 'Rate limited. Try again later.' : 'Invalid password';
                 }
@@ -173,13 +194,14 @@ function app() {
         loadTabData() {
             switch (this.tab) {
                 case 'services': this.loadServices(); break;
-                case 'packages': this.searchPackages(); break;
+                case 'packages': this.searchPackages(); this.loadApkRepos(); break;
                 case 'network': this.loadNetwork(); break;
                 case 'storage': this.loadStorage(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': break; // handled by toggle
                 case 'sessions': this.loadSessions(); break;
                 case 'system': this.loadSystemInfo(); break;
+                case 'modules': this.loadKMod(); break;
             }
         },
 
@@ -530,6 +552,25 @@ function app() {
             } catch (e) { this.showAlert('Failed to load users', 'error'); }
         },
 
+        async deleteUser(username) {
+            if (!confirm(`Delete user ${username}?`)) return;
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(username)}/delete`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                if (r.ok) {
+                    this.showAlert('User deleted', 'success');
+                    this.loadUsers();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Delete failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Delete failed', 'error'); }
+        },
+
         async createUser() {
             this.userError = '';
             try {
@@ -678,6 +719,81 @@ function app() {
                     this.showAlert('Hostname update failed: ' + err, 'error');
                 }
             } catch (e) { this.showAlert('Hostname update failed', 'error'); }
+        },
+
+        async loadKMod() {
+            try {
+                const r = await fetch('/api/kmod/list', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.kmodModules = await r.json();
+            } catch (e) { /* silent */ }
+        },
+
+        async loadModule() {
+            if (!this.kmodForm.module.trim()) return;
+            try {
+                const r = await fetch('/api/kmod/load', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ module: this.kmodForm.module.trim() })
+                });
+                if (r.ok) {
+                    this.showAlert('Module loaded', 'success');
+                    this.showKModForm = false;
+                    this.kmodForm = { module: '' };
+                    this.loadKMod();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Load failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Load failed', 'error'); }
+        },
+
+        async unloadModule(module) {
+            if (!confirm(`Unload module ${module}?`)) return;
+            try {
+                const r = await fetch('/api/kmod/unload', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ module })
+                });
+                if (r.ok) {
+                    this.showAlert('Module unloaded', 'success');
+                    this.loadKMod();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Unload failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Unload failed', 'error'); }
+        },
+
+        async loadApkRepos() {
+            try {
+                const r = await fetch('/api/apk/repositories', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.apkRepos = data.content || '';
+            } catch (e) { this.showAlert('Failed to load repositories', 'error'); }
+        },
+
+        async saveApkRepos() {
+            try {
+                const r = await fetch('/api/apk/repositories', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.apkRepos })
+                });
+                if (r.ok) {
+                    this.showAlert('Repositories saved', 'success');
+                    this.showApkRepoEdit = false;
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Save failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Save failed', 'error'); }
         },
 
         async powerAction(action) {
