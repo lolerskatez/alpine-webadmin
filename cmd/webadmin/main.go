@@ -1266,6 +1266,131 @@ func main() {
 		forwardIPC(w, r, ipcClient, ipc.TypePackageCacheClean, []byte("{}"))
 	}))))
 
+	// CPU info (read-only)
+	mux.Handle("/api/system/cpuinfo", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		info := map[string]string{}
+		if data, err := os.ReadFile("/proc/cpuinfo"); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					info[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(info)
+	})))
+
+	// Memory info (read-only)
+	mux.Handle("/api/system/meminfo", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		info := map[string]string{}
+		if data, err := os.ReadFile("/proc/meminfo"); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					info[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(info)
+	})))
+
+	// dmesg / boot log (read-only)
+	mux.Handle("/api/system/dmesg", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		dmesgBin := findBin("dmesg", "/usr/sbin/dmesg", "/sbin/dmesg", "/bin/dmesg")
+		if _, statErr := os.Stat(dmesgBin); statErr == nil {
+			output, err = exec.Command(dmesgBin).Output()
+		}
+		if err != nil || len(output) == 0 {
+			output, err = os.ReadFile("/var/log/dmesg")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// Network addresses (read-only)
+	mux.Handle("/api/network/addr", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		ipBin := findBin("ip", "/usr/sbin/ip", "/sbin/ip")
+		var output []byte
+		var err error
+		if _, statErr := os.Stat(ipBin); statErr == nil {
+			output, err = exec.Command(ipBin, "addr", "show").Output()
+		}
+		if err != nil || len(output) == 0 {
+			ifconfigBin := findBin("ifconfig", "/usr/sbin/ifconfig", "/sbin/ifconfig")
+			if _, statErr := os.Stat(ifconfigBin); statErr == nil {
+				output, err = exec.Command(ifconfigBin).Output()
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// Disk SMART status (read-only)
+	mux.Handle("/api/storage/smart", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		dev := r.URL.Query().Get("dev")
+		if dev == "" {
+			dev = "/dev/sda"
+		}
+		dev = filepath.Clean(dev)
+		if !strings.HasPrefix(dev, "/dev/") {
+			http.Error(w, "invalid device", http.StatusBadRequest)
+			return
+		}
+		var output []byte
+		var err error
+		smartctlBin := findBin("smartctl", "/usr/sbin/smartctl", "/sbin/smartctl")
+		if _, statErr := os.Stat(smartctlBin); statErr == nil {
+			output, err = exec.Command(smartctlBin, "-H", dev).Output()
+			if err != nil || len(output) == 0 {
+				output, _ = exec.Command(smartctlBin, "-a", dev).Output()
+			}
+		}
+		if len(output) == 0 {
+			hdparmBin := findBin("hdparm", "/usr/sbin/hdparm", "/sbin/hdparm")
+			if _, statErr := os.Stat(hdparmBin); statErr == nil {
+				output, err = exec.Command(hdparmBin, "-i", dev).Output()
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil && len(output) == 0 {
+			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
 	mux.Handle("/api/logs", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
