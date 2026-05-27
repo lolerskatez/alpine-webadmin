@@ -138,6 +138,8 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handlePackageOpQuery(req)
 	case ipc.TypePackageCacheClean:
 		resp = b.handlePackageCacheClean(req)
+	case ipc.TypeDhcpToggle:
+		resp = b.handleDhcpToggle(req)
 	case ipc.TypeReboot:
 		resp = b.handleReboot(req)
 	case ipc.TypeShutdown:
@@ -629,6 +631,49 @@ func (b *broker) handlePackageCacheClean(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrExecutionFailed, string(out))
 	}
 	return b.ok(req, map[string]string{"status": "cache cleaned"})
+}
+
+func (b *broker) handleDhcpToggle(req ipc.Envelope) ipc.Envelope {
+	var body map[string]string
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	iface := body["iface"]
+	action := body["action"]
+	if iface == "" || (action != "start" && action != "stop") {
+		return b.error(req, ipc.ErrInvalidRequest, "iface and action required")
+	}
+	if action == "start" {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		out, err := b.run(ctx, "/sbin/udhcpc", "-i", iface, "-b")
+		if err != nil {
+			return b.error(req, ipc.ErrExecutionFailed, string(out))
+		}
+		return b.ok(req, map[string]string{"status": "dhcp started", "iface": iface})
+	}
+	// Stop: find udhcpc PID for this interface and kill it
+	pidFile := fmt.Sprintf("/var/run/udhcpc.%s.pid", iface)
+	if data, err := os.ReadFile(pidFile); err == nil {
+		pid := strings.TrimSpace(string(data))
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		b.run(ctx, "/bin/kill", pid)
+		os.Remove(pidFile)
+		return b.ok(req, map[string]string{"status": "dhcp stopped", "iface": iface})
+	}
+	// Fallback: try to find and kill via pgrep or ps
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, _ := b.run(ctx, "/bin/sh", "-c", fmt.Sprintf("ps | grep 'udhcpc.*-i %s' | grep -v grep | awk '{print $1}'", iface))
+	pid := strings.TrimSpace(string(out))
+	if pid != "" {
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel2()
+		b.run(ctx2, "/bin/kill", pid)
+		return b.ok(req, map[string]string{"status": "dhcp stopped", "iface": iface})
+	}
+	return b.ok(req, map[string]string{"status": "no dhcp process found", "iface": iface})
 }
 
 func (b *broker) toIPCPackages(pkgs []apk.PackageInfo) []ipc.PackageInfo {

@@ -1391,6 +1391,87 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
 	})))
 
+	// SSH host keys (read-only)
+	mux.Handle("/api/system/ssh-host-keys", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		keys := []map[string]string{}
+		entries, err := os.ReadDir("/etc/ssh")
+		if err == nil {
+			for _, entry := range entries {
+				name := entry.Name()
+				if strings.HasPrefix(name, "ssh_host_") && strings.HasSuffix(name, "_key.pub") {
+					data, err := os.ReadFile(filepath.Join("/etc/ssh", name))
+					if err == nil {
+						keys = append(keys, map[string]string{"file": name, "content": strings.TrimSpace(string(data))})
+					}
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(keys)
+	})))
+
+	// MOTD / issue (read-only)
+	mux.Handle("/api/system/motd", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		motd, _ := os.ReadFile("/etc/motd")
+		issue, _ := os.ReadFile("/etc/issue")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"motd":  strings.TrimSpace(string(motd)),
+			"issue": strings.TrimSpace(string(issue)),
+		})
+	})))
+
+	// Kernel boot parameters (read-only)
+	mux.Handle("/api/system/cmdline", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/cmdline")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"cmdline": strings.TrimSpace(string(data))})
+	})))
+
+	// Swap info (read-only)
+	mux.Handle("/api/system/swaps", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/swaps")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
+	})))
+
+	// DHCP toggle
+	mux.Handle("/api/network/dhcp", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		iface := body["iface"]
+		action := body["action"]
+		if iface == "" || (action != "start" && action != "stop") {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(map[string]string{"iface": iface, "action": action})
+		forwardIPC(w, r, ipcClient, ipc.TypeDhcpToggle, payload)
+	}))))
+
 	mux.Handle("/api/logs", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

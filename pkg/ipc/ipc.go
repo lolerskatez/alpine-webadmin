@@ -343,6 +343,7 @@ const (
 	TypeResolvWrite     = "cap.resolv.write"
 	TypeClockSet         = "cap.clock.set"
 	TypePackageCacheClean = "cap.package.cache.clean"
-	TypeResponseOK       = "response.ok"
-	TypeResponseError    = "response.error"
+	TypeDhcpToggle        = "cap.network.dhcp.toggle"
+	TypeResponseOK        = "response.ok"
+	TypeResponseError     = "response.error"
 )

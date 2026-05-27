@@ -197,6 +197,19 @@ function app() {
         smartDev: '/dev/sda',
         smartContent: '',
 
+        // ── SSH Host Keys ─────────────────────────────────
+        sshHostKeys: [],
+
+        // ── MOTD ──────────────────────────────────────────
+        motdContent: '',
+        issueContent: '',
+
+        // ── Boot Parameters ───────────────────────────────
+        cmdlineContent: '',
+
+        // ── Swaps ─────────────────────────────────────────
+        swapsContent: '',
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -314,7 +327,7 @@ function app() {
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -1564,6 +1577,60 @@ function app() {
                 const data = await r.json();
                 this.smartContent = data.content || '';
             } catch (e) { this.smartContent = ''; }
+        },
+
+        // ── SSH Host Keys ─────────────────────────────────
+        async loadSshHostKeys() {
+            try {
+                const r = await fetch('/api/system/ssh-host-keys', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.sshHostKeys = await r.json();
+            } catch (e) { this.sshHostKeys = []; }
+        },
+
+        // ── MOTD ──────────────────────────────────────────
+        async loadMotd() {
+            try {
+                const r = await fetch('/api/system/motd', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.motdContent = data.motd || '';
+                this.issueContent = data.issue || '';
+            } catch (e) { this.motdContent = ''; this.issueContent = ''; }
+        },
+
+        // ── Boot Parameters ───────────────────────────────
+        async loadCmdline() {
+            try {
+                const r = await fetch('/api/system/cmdline', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.cmdlineContent = data.cmdline || '';
+            } catch (e) { this.cmdlineContent = ''; }
+        },
+
+        // ── Swaps ─────────────────────────────────────────
+        async loadSwaps() {
+            try {
+                const r = await fetch('/api/system/swaps', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.swapsContent = data.content || '';
+            } catch (e) { this.swapsContent = ''; }
+        },
+
+        // ── DHCP Toggle ───────────────────────────────────
+        async toggleDhcp(iface, action) {
+            try {
+                const r = await fetch('/api/network/dhcp', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ iface, action })
+                });
+                if (r.ok) { this.showAlert(`DHCP ${action}ed on ${iface}`, 'success'); }
+                else { const err = await r.text(); this.showAlert(`DHCP toggle failed: ${err}`, 'error'); }
+            } catch (e) { this.showAlert('DHCP toggle failed', 'error'); }
         },
 
         // ── File Viewer ───────────────────────────────────

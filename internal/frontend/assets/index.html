@@ -689,6 +689,8 @@
                                                 <td role="cell" class="actions-col">
                                                     <button class="btn btn-sm" @click="netIfUp(iface.name)" :disabled="iface.state === 'up'">Up</button>
                                                     <button class="btn btn-sm btn-danger" @click="netIfDown(iface.name)" :disabled="iface.state === 'down'">Down</button>
+                                                    <button class="btn btn-sm btn-secondary" @click="toggleDhcp(iface.name, 'start')">DHCP On</button>
+                                                    <button class="btn btn-sm btn-secondary" @click="toggleDhcp(iface.name, 'stop')">DHCP Off</button>
                                                 </td>
                                             </tr>
                                         </template>
@@ -1571,6 +1573,53 @@
                             <div class="panel-header"><h3>Boot Log (dmesg)</h3></div>
                             <div class="panel-body">
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="dmesgContent || 'No boot log available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>SSH Host Keys</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="SSH host keys">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">File</th>
+                                            <th role="columnheader">Public Key</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="key in sshHostKeys" :key="key.file">
+                                            <tr role="row">
+                                                <td role="cell" x-text="key.file" style="font-size:12px;"></td>
+                                                <td role="cell" x-text="key.content" style="font-size:12px;word-break:break-all;" class="mono"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="sshHostKeys.length === 0" class="empty-state">No host keys found.</div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Login Banner</h3></div>
+                            <div class="panel-body">
+                                <h4 style="margin:0.5rem 0 0.25rem;font-size:12px;color:var(--text-muted);">/etc/issue</h4>
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:100px;white-space:pre-wrap;word-break:break-all;" x-text="issueContent || 'No issue file.'"></pre>
+                                <h4 style="margin:0.5rem 0 0.25rem;font-size:12px;color:var(--text-muted);">/etc/motd</h4>
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:100px;white-space:pre-wrap;word-break:break-all;" x-text="motdContent || 'No MOTD file.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Kernel Boot Parameters</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;" x-text="cmdlineContent || 'No boot parameters available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Swap</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:300px;white-space:pre-wrap;word-break:break-all;" x-text="swapsContent || 'No swap data available.'"></pre>
                             </div>
                         </div>
 
