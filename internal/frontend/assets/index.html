@@ -628,6 +628,13 @@
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;" x-text="packageDepends.reverse_depends || 'No reverse dependency data.'"></pre>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>APK World (Explicitly Installed)</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="apkWorldContent || 'No APK world data available.'"></pre>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- Package removal confirmation -->
@@ -762,6 +769,20 @@
                             <div class="panel-header"><h3>ARP Table</h3></div>
                             <div class="panel-body">
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="arpContent || 'No ARP data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Interface Statistics</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="netDevContent || 'No interface statistics available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Listening Sockets</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="listenersContent || 'No listening socket data available.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -914,6 +935,13 @@
                             <div class="panel-header"><h3>Disk I/O Statistics</h3></div>
                             <div class="panel-body">
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="diskStatsContent || 'No disk I/O data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Mounted Filesystems</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="mountsContent || 'No mount data available.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -1637,6 +1665,13 @@
                             <div class="panel-header"><h3>Open Files</h3></div>
                             <div class="panel-body">
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="openFilesContent || 'No open files data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>System Load Average</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;" x-text="loadAvgContent || 'No load average data available.'"></pre>
                             </div>
                         </div>
 

@@ -474,6 +474,17 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"depends": depends, "reverse_depends": revDepends})
 	})))
 
+	// APK world (explicitly installed packages)
+	mux.Handle("/api/packages/world", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/etc/apk/world")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
+	})))
+
 	mux.Handle("/api/services/enable", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -647,6 +658,17 @@ func main() {
 			return
 		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+
+	// Mounted filesystems (read-only)
+	mux.Handle("/api/storage/mounts", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/mounts")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
 	})))
 
 	// USB devices (read-only)
@@ -1505,6 +1527,53 @@ func main() {
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// Network interface statistics (read-only)
+	mux.Handle("/api/network/dev", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/net/dev")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
+	})))
+
+	// Listening sockets (read-only)
+	mux.Handle("/api/network/listeners", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		ssBin := findBin("ss", "/usr/sbin/ss", "/sbin/ss", "/bin/ss")
+		if _, statErr := os.Stat(ssBin); statErr == nil {
+			output, err = exec.Command(ssBin, "-tlnp").Output()
+		}
+		if err != nil || len(output) == 0 {
+			netstatBin := findBin("netstat", "/usr/bin/netstat", "/bin/netstat")
+			if _, statErr := os.Stat(netstatBin); statErr == nil {
+				output, err = exec.Command(netstatBin, "-tlnp").Output()
+			}
+		}
+		if err != nil || len(output) == 0 {
+			output = []byte("ss/netstat not available")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// System load average (read-only)
+	mux.Handle("/api/system/loadavg", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/loadavg")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": strings.TrimSpace(string(data))})
 	})))
 
 	// Open files overview (read-only)

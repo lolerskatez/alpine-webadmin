@@ -200,6 +200,21 @@ function app() {
         // ── Network Addresses ───────────────────────────
         netAddrContent: '',
 
+        // ── Network Interface Statistics ──────────────────
+        netDevContent: '',
+
+        // ── Listening Sockets ─────────────────────────────
+        listenersContent: '',
+
+        // ── Load Average ──────────────────────────────────
+        loadAvgContent: '',
+
+        // ── Mounted Filesystems ───────────────────────────
+        mountsContent: '',
+
+        // ── APK World ─────────────────────────────────────
+        apkWorldContent: '',
+
         // ── SMART ─────────────────────────────────────────
         smartDev: '/dev/sda',
         smartContent: '',
@@ -356,13 +371,13 @@ function app() {
             switch (this.tab) {
                 case 'dashboard': this.loadSystemAlerts(); break;
                 case 'services': this.loadServices(); this.loadServicesStatus(); break;
-                case 'packages': this.searchPackages(); this.loadApkRepos(); break;
-                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); this.loadNetConnections(); this.loadArp(); break;
-                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); this.loadPartitions(); this.loadDiskStats(); break;
+                case 'packages': this.searchPackages(); this.loadApkRepos(); this.loadApkWorld(); break;
+                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); this.loadNetConnections(); this.loadArp(); this.loadNetDev(); this.loadListeners(); break;
+                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); this.loadPartitions(); this.loadDiskStats(); this.loadMounts(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); this.loadUsbDevices(); this.loadPciDevices(); this.loadEnviron(); this.loadKernelVersion(); this.loadResolv(); this.loadOpenFiles(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); this.loadUsbDevices(); this.loadPciDevices(); this.loadEnviron(); this.loadKernelVersion(); this.loadResolv(); this.loadOpenFiles(); this.loadLoadAvg(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -1613,6 +1628,56 @@ function app() {
                 const data = await r.json();
                 this.diskStatsContent = data.content || '';
             } catch (e) { this.diskStatsContent = ''; }
+        },
+
+        // ── Network Interface Statistics ──────────────────
+        async loadNetDev() {
+            try {
+                const r = await fetch('/api/network/dev', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.netDevContent = data.content || '';
+            } catch (e) { this.netDevContent = ''; }
+        },
+
+        // ── Listening Sockets ─────────────────────────────
+        async loadListeners() {
+            try {
+                const r = await fetch('/api/network/listeners', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.listenersContent = data.content || '';
+            } catch (e) { this.listenersContent = ''; }
+        },
+
+        // ── Load Average ──────────────────────────────────
+        async loadLoadAvg() {
+            try {
+                const r = await fetch('/api/system/loadavg', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.loadAvgContent = data.content || '';
+            } catch (e) { this.loadAvgContent = ''; }
+        },
+
+        // ── Mounted Filesystems ───────────────────────────
+        async loadMounts() {
+            try {
+                const r = await fetch('/api/storage/mounts', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.mountsContent = data.content || '';
+            } catch (e) { this.mountsContent = ''; }
+        },
+
+        // ── APK World ─────────────────────────────────────
+        async loadApkWorld() {
+            try {
+                const r = await fetch('/api/packages/world', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.apkWorldContent = data.content || '';
+            } catch (e) { this.apkWorldContent = ''; }
         },
 
         // ── Network Addresses ───────────────────────────
