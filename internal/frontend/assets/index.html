@@ -432,11 +432,32 @@
                                                             :aria-label="'Disable ' + svc.name + ' at boot'">
                                                         Disable
                                                     </button>
+                                                    <button class="btn btn-sm"
+                                                            @click="showServiceLogModal(svc.name)"
+                                                            :aria-label="'View log for ' + svc.name">
+                                                        Log
+                                                    </button>
                                                 </td>
                                             </tr>
                                         </template>
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                        <!-- Service log modal -->
+                        <div x-show="showServiceLog" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="svc-log-title">
+                            <div class="modal" style="max-width:900px;">
+                                <div class="modal-header">
+                                    <h3 id="svc-log-title" x-text="'Log: ' + serviceLogName"></h3>
+                                    <button @click="closeServiceLog()" class="modal-close" aria-label="Close dialog">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div x-show="serviceLogStatus" style="margin-bottom:0.75rem;padding:0.5rem;background:var(--bg-tertiary);border-radius:var(--radius-sm);font-size:13px;" x-text="serviceLogStatus"></div>
+                                    <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="serviceLogContent || 'No log available.'"></pre>
+                                </div>
+                                <div class="modal-actions">
+                                    <button @click="closeServiceLog()" class="btn btn-secondary">Close</button>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -583,7 +604,7 @@
                         <h2 id="network-heading" class="section-title">Network</h2>
 
                         <div class="toolbar">
-                            <button @click="loadNetwork()" class="btn" aria-label="Refresh network">Refresh</button>
+                            <button @click="loadNetwork(); loadNetworkInterfaces();" class="btn" aria-label="Refresh network">Refresh</button>
                         </div>
 
                         <div class="panel">
@@ -614,6 +635,38 @@
                                 <div x-show="networkData.length === 0" class="empty-state">No network data available.</div>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Interface Control</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Interface states">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">Interface</th>
+                                            <th role="columnheader">State</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="iface in networkInterfaces" :key="iface.name">
+                                            <tr role="row">
+                                                <td role="cell" x-text="iface.name"></td>
+                                                <td role="cell">
+                                                    <span class="badge"
+                                                          :class="iface.state === 'up' ? 'badge-ok' : (iface.state === 'down' ? 'badge-warning' : 'badge-subtle')"
+                                                          x-text="iface.state"></span>
+                                                </td>
+                                                <td role="cell" class="actions-col">
+                                                    <button class="btn btn-sm" @click="netIfUp(iface.name)" :disabled="iface.state === 'up'">Up</button>
+                                                    <button class="btn btn-sm btn-danger" @click="netIfDown(iface.name)" :disabled="iface.state === 'down'">Down</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="networkInterfaces.length === 0" class="empty-state">No interface data available.</div>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ STORAGE ============ -->
@@ -627,6 +680,7 @@
                         <div class="toolbar">
                             <button @click="loadStorage()" class="btn" aria-label="Refresh storage">Refresh</button>
                             <button @click="showMountForm = true" class="btn btn-secondary" aria-label="Mount device">Mount</button>
+                            <button @click="showFstabEdit = true" class="btn btn-secondary" aria-label="Edit fstab">fstab</button>
                         </div>
 
                         <div x-show="showMountForm" class="panel">
@@ -687,6 +741,26 @@
                                     </tbody>
                                 </table>
                                 <div x-show="storageData.length === 0" class="empty-state">No storage data available.</div>
+                            </div>
+                        </div>
+
+                        <div x-show="showFstabEdit" class="panel">
+                            <div class="panel-header"><h3>Edit fstab</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row">
+                                    <textarea x-model="fstabContent" rows="10" style="width:100%;font-family:monospace;font-size:12px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:0.5rem;" placeholder="/dev/sda1 / ext4 defaults 0 1"></textarea>
+                                </div>
+                                <div class="btn-group">
+                                    <button @click="saveFstab()" class="btn">Save</button>
+                                    <button @click="showFstabEdit = false" class="btn btn-secondary">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>fstab</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:300px;white-space:pre-wrap;" x-text="fstabContent || 'No fstab entries.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -771,12 +845,49 @@
                                                             @click="deleteUser(u.username)"
                                                             :disabled="u._loading"
                                                             :aria-label="'Delete user ' + u.username">Delete</button>
+                                                    <button class="btn btn-sm btn-secondary"
+                                                            @click="showGroupManageModal(u.username)"
+                                                            :disabled="u._loading"
+                                                            :aria-label="'Manage groups for ' + u.username">Groups</button>
                                                 </td>
                                             </tr>
                                         </template>
                                     </tbody>
                                 </table>
                                 <div x-show="users.length === 0" class="empty-state">No users found.</div>
+                            </div>
+                        </div>
+                        <!-- Group management modal -->
+                        <div x-show="showGroupManage" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="groups-title">
+                            <div class="modal" style="max-width:500px;">
+                                <div class="modal-header">
+                                    <h3 id="groups-title" x-text="'Groups: ' + groupManageUser"></h3>
+                                    <button @click="closeGroupManage()" class="modal-close" aria-label="Close dialog">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-row">
+                                        <label>Add to group</label>
+                                        <div style="display:flex;gap:0.5rem;">
+                                            <input type="text" x-model="newGroupName" placeholder="groupname" style="flex:1;" @keydown.enter="addUserGroup()">
+                                            <button @click="addUserGroup()" class="btn">Add</button>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top:1rem;">
+                                        <h4 style="font-size:14px;margin-bottom:0.5rem;color:var(--text-secondary);">Current groups</h4>
+                                        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;">
+                                            <template x-for="g in userGroups" :key="g">
+                                                <span class="badge badge-subtle" style="display:flex;align-items:center;gap:0.3rem;">
+                                                    <span x-text="g"></span>
+                                                    <button @click="removeUserGroup(g)" style="background:none;border:none;color:inherit;cursor:pointer;padding:0;font-size:12px;line-height:1;" aria-label="Remove group">&times;</button>
+                                                </span>
+                                            </template>
+                                        </div>
+                                        <div x-show="userGroups.length === 0" class="empty-state" style="padding:0.5rem;">No groups.</div>
+                                    </div>
+                                </div>
+                                <div class="modal-actions">
+                                    <button @click="closeGroupManage()" class="btn btn-secondary">Close</button>
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -1087,6 +1198,33 @@
                                     <div class="info-row">
                                         <span class="info-label">Version</span>
                                         <span class="info-value" x-text="version || '-'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Timezone / NTP</h3></div>
+                            <div class="panel-body">
+                                <div class="info-grid">
+                                    <div class="info-row">
+                                        <span class="info-label">Timezone</span>
+                                        <span class="info-value" x-show="!showTimezoneEdit" x-text="timezone || '-'"></span>
+                                        <template x-if="showTimezoneEdit">
+                                            <div class="inline-form">
+                                                <input type="text" x-model="timezone" placeholder="Europe/London" aria-label="Timezone">
+                                                <button @click="saveTimezone()" class="btn btn-sm">Save</button>
+                                                <button @click="showTimezoneEdit = false" class="btn btn-sm btn-secondary">Cancel</button>
+                                            </div>
+                                        </template>
+                                        <button x-show="!showTimezoneEdit" @click="showTimezoneEdit = true" class="btn btn-sm btn-secondary" aria-label="Edit timezone">Edit</button>
+                                    </div>
+                                    <div class="info-row">
+                                        <span class="info-label">NTP</span>
+                                        <span class="info-value">
+                                            <span class="badge" :class="ntpEnabled ? 'badge-ok' : 'badge-warning'" x-text="ntpEnabled ? 'Enabled' : 'Disabled'"></span>
+                                            <button @click="toggleNtp()" class="btn btn-sm btn-secondary" style="margin-left:0.5rem;" x-text="ntpEnabled ? 'Disable' : 'Enable'" aria-label="Toggle NTP"></button>
+                                        </span>
                                     </div>
                                 </div>
                             </div>

@@ -174,6 +174,24 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleProcessKill(req)
 	case ipc.TypeLogRead:
 		resp = b.handleLogRead(req)
+	case ipc.TypeNetIfUp:
+		resp = b.handleNetIfUp(req)
+	case ipc.TypeNetIfDown:
+		resp = b.handleNetIfDown(req)
+	case ipc.TypeFstabRead:
+		resp = b.handleFstabRead(req)
+	case ipc.TypeFstabWrite:
+		resp = b.handleFstabWrite(req)
+	case ipc.TypeTimezoneSet:
+		resp = b.handleTimezoneSet(req)
+	case ipc.TypeNtpSet:
+		resp = b.handleNtpSet(req)
+	case ipc.TypeServiceLogRead:
+		resp = b.handleServiceLogRead(req)
+	case ipc.TypeUserGroupAdd:
+		resp = b.handleUserGroupAdd(req)
+	case ipc.TypeUserGroupRemove:
+		resp = b.handleUserGroupRemove(req)
 	default:
 		resp = b.error(req, ipc.ErrInvalidRequest, "unknown message type")
 	}
@@ -997,6 +1015,216 @@ func (b *broker) handleKModUnload(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrExecutionFailed, string(out))
 	}
 	return b.ok(req, map[string]string{"module": body.Module, "status": "unloaded"})
+}
+
+// ── Network Interface Up/Down ───────────────────────
+
+func (b *broker) handleNetIfUp(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/ip") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/ip not allowed")
+	}
+	var body ipc.NetIfReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateInterface(body.Interface); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/ip", "link", "set", body.Interface, "up")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"interface": body.Interface, "status": "up"})
+}
+
+func (b *broker) handleNetIfDown(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/ip") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/ip not allowed")
+	}
+	var body ipc.NetIfReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateInterface(body.Interface); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/ip", "link", "set", body.Interface, "down")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"interface": body.Interface, "status": "down"})
+}
+
+// ── fstab ──────────────────────────────────────────
+
+func (b *broker) handleFstabRead(req ipc.Envelope) ipc.Envelope {
+	data, err := os.ReadFile("/etc/fstab")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"content": string(data)})
+}
+
+func (b *broker) handleFstabWrite(req ipc.Envelope) ipc.Envelope {
+	var body ipc.FstabWriteReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := os.WriteFile("/etc/fstab", []byte(body.Content), 0644); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"status": "written"})
+}
+
+// ── Timezone / NTP ─────────────────────────────────
+
+func (b *broker) handleTimezoneSet(req ipc.Envelope) ipc.Envelope {
+	var body ipc.TimezoneSetReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.Timezone == "" || strings.Contains(body.Timezone, "..") {
+		return b.error(req, ipc.ErrInvalidRequest, "invalid timezone")
+	}
+	if strings.HasPrefix(body.Timezone, "/") && !strings.HasPrefix(body.Timezone, "/usr/share/zoneinfo/") {
+		return b.error(req, ipc.ErrInvalidRequest, "invalid timezone path")
+	}
+	tzPath := body.Timezone
+	if !strings.HasPrefix(tzPath, "/") {
+		tzPath = "/usr/share/zoneinfo/" + body.Timezone
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	// Copy timezone file to /etc/localtime
+	out, err := b.run(ctx, "/bin/cp", tzPath, "/etc/localtime")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	if err := os.WriteFile("/etc/timezone", []byte(body.Timezone+"\n"), 0644); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"timezone": body.Timezone, "status": "set"})
+}
+
+func (b *broker) handleNtpSet(req ipc.Envelope) ipc.Envelope {
+	var body ipc.NtpSetReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	// Try chronyd first, then ntpd
+	var svc string
+	if _, err := os.Stat("/etc/init.d/chronyd"); err == nil {
+		svc = "chronyd"
+	} else if _, err := os.Stat("/etc/init.d/ntpd"); err == nil {
+		svc = "ntpd"
+	} else {
+		return b.error(req, ipc.ErrExecutionFailed, "no NTP service found")
+	}
+	action := "stop"
+	if body.Enabled {
+		action = "start"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/rc-service", svc, action)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"service": svc, "action": action, "status": "ok"})
+}
+
+// ── Service Log ────────────────────────────────────
+
+func (b *broker) handleServiceLogRead(req ipc.Envelope) ipc.Envelope {
+	var body ipc.ServiceLogReadReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateService(body.Name); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	// Try common log paths
+	paths := []string{
+		fmt.Sprintf("/var/log/%s.log", body.Name),
+		fmt.Sprintf("/var/log/%s", body.Name),
+		"/var/log/messages",
+	}
+	var data []byte
+	for _, p := range paths {
+		if d, err := os.ReadFile(p); err == nil {
+			data = d
+			break
+		}
+	}
+	// Also get service status
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	statusOut, _ := b.run(ctx, "/sbin/rc-service", body.Name, "status")
+	return b.ok(req, map[string]interface{}{
+		"name":   body.Name,
+		"log":    string(data),
+		"status": string(statusOut),
+	})
+}
+
+// ── User Groups ────────────────────────────────────
+
+func (b *broker) handleUserGroupAdd(req ipc.Envelope) ipc.Envelope {
+	var body ipc.UserGroupReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateGroup(body.Group); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/usr/sbin/adduser", body.Username, body.Group)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"username": body.Username, "group": body.Group, "status": "added"})
+}
+
+func (b *broker) handleUserGroupRemove(req ipc.Envelope) ipc.Envelope {
+	var body ipc.UserGroupReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateGroup(body.Group); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/usr/sbin/delgroup", body.Username, body.Group)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"username": body.Username, "group": body.Group, "status": "removed"})
+}
+
+func (b *broker) validateInterface(name string) error {
+	if name == "" || strings.Contains(name, "/") || strings.Contains(name, "..") {
+		return fmt.Errorf("invalid interface name")
+	}
+	return nil
+}
+
+func (b *broker) validateGroup(name string) error {
+	if name == "" || !reUsername.MatchString(name) {
+		return fmt.Errorf("invalid group name")
+	}
+	return nil
 }
 
 // generateRandomPassword creates a 16-char alphanumeric temporary password.

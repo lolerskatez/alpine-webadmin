@@ -125,6 +125,33 @@ type LogReadReq struct {
 	Offset int    `json:"offset,omitempty"`
 }
 
+type NetIfReq struct {
+	Interface string `json:"interface"`
+}
+
+type FstabReadReq struct{}
+
+type FstabWriteReq struct {
+	Content string `json:"content"`
+}
+
+type TimezoneSetReq struct {
+	Timezone string `json:"timezone"`
+}
+
+type NtpSetReq struct {
+	Enabled bool `json:"enabled"`
+}
+
+type ServiceLogReadReq struct {
+	Name string `json:"name"`
+}
+
+type UserGroupReq struct {
+	Username string `json:"username"`
+	Group    string `json:"group"`
+}
+
 type MountReq struct {
 	Device     string `json:"device"`
 	Mountpoint string `json:"mountpoint"`
@@ -262,6 +289,15 @@ const (
 	TypeCronWrite      = "cap.cron.write"
 	TypeProcessKill    = "cap.process.kill"
 	TypeLogRead        = "cap.log.read"
+	TypeNetIfUp        = "cap.net.if.up"
+	TypeNetIfDown      = "cap.net.if.down"
+	TypeFstabRead      = "cap.fstab.read"
+	TypeFstabWrite     = "cap.fstab.write"
+	TypeTimezoneSet    = "cap.timezone.set"
+	TypeNtpSet         = "cap.ntp.set"
+	TypeServiceLogRead = "cap.service.log.read"
+	TypeUserGroupAdd   = "cap.user.group.add"
+	TypeUserGroupRemove = "cap.user.group.remove"
 	TypeResponseOK     = "response.ok"
 	TypeResponseError  = "response.error"
 )

@@ -245,6 +245,11 @@ func main() {
 		name := parts[0]
 
 		if r.Method == http.MethodGet {
+			if len(parts) == 2 && parts[1] == "log" {
+				payload, _ := json.Marshal(ipc.ServiceLogReadReq{Name: name})
+				forwardIPC(w, r, ipcClient, ipc.TypeServiceLogRead, payload)
+				return
+			}
 			payload, _ := json.Marshal(ipc.ServiceStatusReq{Name: name})
 			forwardIPC(w, r, ipcClient, ipc.TypeServiceStatus, payload)
 			return
@@ -278,6 +283,54 @@ func main() {
 		}
 		payload, _ := json.Marshal(body)
 		forwardIPC(w, r, ipcClient, ipc.TypeHostnameSet, payload)
+	}))))
+
+	mux.Handle("/api/system/timezone", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			data, _ := os.ReadFile("/etc/timezone")
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"timezone": strings.TrimSpace(string(data))})
+			return
+		}
+		if r.Method == http.MethodPost {
+			var body ipc.TimezoneSetReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			payload, _ := json.Marshal(body)
+			forwardIPC(w, r, ipcClient, ipc.TypeTimezoneSet, payload)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}))))
+
+	mux.Handle("/api/system/ntp", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			enabled := false
+			for _, svc := range []string{"chronyd", "ntpd"} {
+				if out, err := exec.Command("/sbin/rc-service", svc, "status").Output(); err == nil {
+					if strings.Contains(string(out), "started") {
+						enabled = true
+						break
+					}
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]bool{"enabled": enabled})
+			return
+		}
+		if r.Method == http.MethodPost {
+			var body ipc.NtpSetReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			payload, _ := json.Marshal(body)
+			forwardIPC(w, r, ipcClient, ipc.TypeNtpSet, payload)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))))
 
 	mux.Handle("/api/system/updates", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -422,6 +475,57 @@ func main() {
 		w.Write(data)
 	})))
 
+	mux.Handle("/api/network/interfaces", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		type ifaceInfo struct {
+			Name  string `json:"name"`
+			State string `json:"state"`
+		}
+		var interfaces []ifaceInfo
+		entries, _ := os.ReadDir("/sys/class/net")
+		for _, entry := range entries {
+			if !entry.IsDir() && entry.Name() != "lo" {
+				stateData, _ := os.ReadFile("/sys/class/net/" + entry.Name() + "/operstate")
+				state := strings.TrimSpace(string(stateData))
+				if state == "" {
+					state = "unknown"
+				}
+				interfaces = append(interfaces, ifaceInfo{Name: entry.Name(), State: state})
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(interfaces)
+	})))
+
+	mux.Handle("/api/network/", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/api/network/")
+		parts := strings.SplitN(path, "/", 2)
+		if len(parts) != 2 {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		iface := parts[0]
+		action := parts[1]
+		if action == "up" {
+			payload, _ := json.Marshal(ipc.NetIfReq{Interface: iface})
+			forwardIPC(w, r, ipcClient, ipc.TypeNetIfUp, payload)
+			return
+		}
+		if action == "down" {
+			payload, _ := json.Marshal(ipc.NetIfReq{Interface: iface})
+			forwardIPC(w, r, ipcClient, ipc.TypeNetIfDown, payload)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}))))
+
 	mux.Handle("/api/storage", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -452,6 +556,24 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte(stdout))
+	})))
+
+	mux.Handle("/api/fstab", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			forwardIPC(w, r, ipcClient, ipc.TypeFstabRead, []byte("{}"))
+			return
+		}
+		if r.Method == http.MethodPost {
+			var body ipc.FstabWriteReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			payload, _ := json.Marshal(body)
+			forwardIPC(w, r, ipcClient, ipc.TypeFstabWrite, payload)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})))
 
 	mux.Handle("/api/users", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -531,8 +653,67 @@ func main() {
 			forwardIPC(w, r, ipcClient, ipc.TypeUserUnlock, payload)
 			return
 		}
+		if action == "groups" {
+			if r.Method == http.MethodGet {
+				idBin := findBin("id", "/usr/bin/id", "/bin/id")
+				out, err := exec.Command(idBin, "-Gn", username).Output()
+				if err != nil {
+					http.Error(w, "Not available", http.StatusServiceUnavailable)
+					return
+				}
+				groups := strings.Fields(string(out))
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]interface{}{"username": username, "groups": groups})
+				return
+			}
+			if r.Method == http.MethodPost {
+				var body ipc.UserGroupReq
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					http.Error(w, "Bad request", http.StatusBadRequest)
+					return
+				}
+				payload, _ := json.Marshal(ipc.UserGroupReq{Username: username, Group: body.Group})
+				forwardIPC(w, r, ipcClient, ipc.TypeUserGroupAdd, payload)
+				return
+			}
+		}
+		if strings.HasPrefix(action, "groups/") {
+			group := strings.TrimPrefix(action, "groups/")
+			action := r.URL.Query().Get("action")
+			if r.Method == http.MethodPost && action == "remove" {
+				payload, _ := json.Marshal(ipc.UserGroupReq{Username: username, Group: group})
+				forwardIPC(w, r, ipcClient, ipc.TypeUserGroupRemove, payload)
+				return
+			}
+		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))))
+
+	mux.Handle("/api/groups", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		getentBin := findBin("getent", "/usr/bin/getent", "/bin/getent")
+		out, err := exec.Command(getentBin, "group").Output()
+		if err != nil {
+			http.Error(w, "Not available", http.StatusServiceUnavailable)
+			return
+		}
+		var groups []map[string]string
+		for _, line := range strings.Split(string(out), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.Split(line, ":")
+			if len(parts) >= 1 {
+				groups = append(groups, map[string]string{"name": parts[0]})
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(groups)
+	})))
 
 	mux.Handle("/api/mount", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

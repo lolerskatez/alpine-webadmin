@@ -104,6 +104,31 @@ function app() {
         logHistoryOffset: 0,
         logHistoryLimit: 100,
 
+        // ── Network Interfaces ────────────────────────────
+        networkInterfaces: [],
+
+        // ── fstab ─────────────────────────────────────────
+        fstabContent: '',
+        showFstabEdit: false,
+
+        // ── Timezone / NTP ────────────────────────────────
+        timezone: '',
+        ntpEnabled: false,
+        showTimezoneEdit: false,
+
+        // ── Service Log ───────────────────────────────────
+        serviceLogName: '',
+        serviceLogContent: '',
+        serviceLogStatus: '',
+        showServiceLog: false,
+
+        // ── User Groups ───────────────────────────────────
+        groupManageUser: '',
+        userGroups: [],
+        availableGroups: [],
+        newGroupName: '',
+        showGroupManage: false,
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -214,12 +239,12 @@ function app() {
             switch (this.tab) {
                 case 'services': this.loadServices(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
-                case 'network': this.loadNetwork(); break;
-                case 'storage': this.loadStorage(); break;
+                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); break;
+                case 'storage': this.loadStorage(); this.loadFstab(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -977,6 +1002,195 @@ function app() {
                 this.logHistoryOffset = Math.max(0, this.logHistoryOffset - this.logHistoryLimit);
                 await this.loadLogHistory();
             }
+        },
+
+        // ── Network Interfaces ────────────────────────────
+        async loadNetworkInterfaces() {
+            try {
+                const r = await fetch('/api/network/interfaces', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.networkInterfaces = await r.json();
+            } catch (e) { this.showAlert('Failed to load interface states', 'error'); }
+        },
+
+        async netIfUp(iface) {
+            try {
+                const r = await fetch(`/api/network/${encodeURIComponent(iface)}/up`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' }
+                });
+                if (r.ok) { this.showAlert(`${iface} brought up`, 'success'); this.loadNetworkInterfaces(); }
+                else { const err = await r.text(); this.showAlert(`Up failed: ${err}`, 'error'); }
+            } catch (e) { this.showAlert('Up failed', 'error'); }
+        },
+
+        async netIfDown(iface) {
+            if (!confirm(`Bring down ${iface}? This may disconnect your session.`)) return;
+            try {
+                const r = await fetch(`/api/network/${encodeURIComponent(iface)}/down`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' }
+                });
+                if (r.ok) { this.showAlert(`${iface} brought down`, 'success'); this.loadNetworkInterfaces(); }
+                else { const err = await r.text(); this.showAlert(`Down failed: ${err}`, 'error'); }
+            } catch (e) { this.showAlert('Down failed', 'error'); }
+        },
+
+        // ── fstab ─────────────────────────────────────────
+        async loadFstab() {
+            try {
+                const r = await fetch('/api/fstab', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.fstabContent = data.content || '';
+            } catch (e) { this.showAlert('Failed to load fstab', 'error'); }
+        },
+
+        async saveFstab() {
+            try {
+                const r = await fetch('/api/fstab', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.fstabContent })
+                });
+                if (r.ok) { this.showAlert('fstab saved', 'success'); this.showFstabEdit = false; }
+                else { const err = await r.text(); this.showAlert('Save failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('Save failed', 'error'); }
+        },
+
+        // ── Timezone / NTP ────────────────────────────────
+        async loadTimezone() {
+            try {
+                const r = await fetch('/api/system/timezone', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.timezone = data.timezone || '';
+            } catch (e) { /* silent */ }
+        },
+
+        async saveTimezone() {
+            try {
+                const r = await fetch('/api/system/timezone', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ timezone: this.timezone })
+                });
+                if (r.ok) { this.showAlert('Timezone saved', 'success'); this.showTimezoneEdit = false; this.loadTimezone(); }
+                else { const err = await r.text(); this.showAlert('Save failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('Save failed', 'error'); }
+        },
+
+        async loadNtp() {
+            try {
+                const r = await fetch('/api/system/ntp', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.ntpEnabled = data.enabled || false;
+            } catch (e) { /* silent */ }
+        },
+
+        async toggleNtp() {
+            const enabled = !this.ntpEnabled;
+            try {
+                const r = await fetch('/api/system/ntp', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                });
+                if (r.ok) { this.showAlert(`NTP ${enabled ? 'enabled' : 'disabled'}`, 'success'); this.loadNtp(); }
+                else { const err = await r.text(); this.showAlert('NTP toggle failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('NTP toggle failed', 'error'); }
+        },
+
+        // ── Service Log ───────────────────────────────────
+        async showServiceLogModal(name) {
+            this.serviceLogName = name;
+            this.serviceLogContent = '';
+            this.serviceLogStatus = '';
+            this.showServiceLog = true;
+            try {
+                const r = await fetch(`/api/services/${encodeURIComponent(name)}/log`, { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.serviceLogContent = data.log || '';
+                this.serviceLogStatus = data.status || '';
+            } catch (e) { this.showAlert('Failed to load service log', 'error'); }
+        },
+
+        closeServiceLog() {
+            this.showServiceLog = false;
+            this.serviceLogName = '';
+            this.serviceLogContent = '';
+            this.serviceLogStatus = '';
+        },
+
+        // ── User Groups ───────────────────────────────────
+        async showGroupManageModal(username) {
+            this.groupManageUser = username;
+            this.userGroups = [];
+            this.newGroupName = '';
+            this.showGroupManage = true;
+            await this.loadUserGroups(username);
+        },
+
+        async loadUserGroups(username) {
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(username)}/groups`, { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.userGroups = data.groups || [];
+            } catch (e) { this.showAlert('Failed to load user groups', 'error'); }
+        },
+
+        async addUserGroup() {
+            const group = this.newGroupName.trim();
+            if (!group) return;
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(this.groupManageUser)}/groups`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ group })
+                });
+                if (r.ok) {
+                    this.showAlert('Group added', 'success');
+                    this.newGroupName = '';
+                    await this.loadUserGroups(this.groupManageUser);
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Add failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Add failed', 'error'); }
+        },
+
+        async removeUserGroup(group) {
+            if (!confirm(`Remove ${this.groupManageUser} from group ${group}?`)) return;
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(this.groupManageUser)}/groups/${encodeURIComponent(group)}?action=remove`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' }
+                });
+                if (r.ok) {
+                    this.showAlert('Group removed', 'success');
+                    await this.loadUserGroups(this.groupManageUser);
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Remove failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Remove failed', 'error'); }
+        },
+
+        closeGroupManage() {
+            this.showGroupManage = false;
+            this.groupManageUser = '';
+            this.userGroups = [];
+            this.newGroupName = '';
         },
 
         async powerAction(action) {
