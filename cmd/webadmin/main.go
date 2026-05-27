@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"runtime"
 	"strconv"
 	"strings"
@@ -520,6 +521,16 @@ func main() {
 			forwardIPC(w, r, ipcClient, ipc.TypeUserDelete, payload)
 			return
 		}
+		if r.Method == http.MethodPost && action == "lock" {
+			payload, _ := json.Marshal(ipc.UserLockReq{Username: username})
+			forwardIPC(w, r, ipcClient, ipc.TypeUserLock, payload)
+			return
+		}
+		if r.Method == http.MethodPost && action == "unlock" {
+			payload, _ := json.Marshal(ipc.UserUnlockReq{Username: username})
+			forwardIPC(w, r, ipcClient, ipc.TypeUserUnlock, payload)
+			return
+		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))))
 
@@ -613,6 +624,167 @@ func main() {
 			return
 		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+
+	mux.Handle("/api/ssh/config", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			forwardIPC(w, r, ipcClient, ipc.TypeSshConfigRead, []byte("{}"))
+			return
+		}
+		if r.Method == http.MethodPost {
+			var body ipc.SshConfigWriteReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			payload, _ := json.Marshal(body)
+			forwardIPC(w, r, ipcClient, ipc.TypeSshConfigWrite, payload)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+
+	mux.Handle("/api/cron", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			forwardIPC(w, r, ipcClient, ipc.TypeCronRead, []byte("{}"))
+			return
+		}
+		if r.Method == http.MethodPost {
+			var body ipc.CronWriteReq
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			payload, _ := json.Marshal(body)
+			forwardIPC(w, r, ipcClient, ipc.TypeCronWrite, payload)
+			return
+		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+
+	mux.Handle("/api/processes", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		type procInfo struct {
+			PID      int     `json:"pid"`
+			Name     string  `json:"name"`
+			User     string  `json:"user"`
+			CPU      float64 `json:"cpu"`
+			Mem      float64 `json:"mem"`
+			State    string  `json:"state"`
+			Command  string  `json:"command"`
+		}
+		var processes []procInfo
+		entries, _ := os.ReadDir("/proc")
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			pid, err := strconv.Atoi(entry.Name())
+			if err != nil {
+				continue
+			}
+			statusPath := fmt.Sprintf("/proc/%d/status", pid)
+			statusData, err := os.ReadFile(statusPath)
+			if err != nil {
+				continue
+			}
+			p := procInfo{PID: pid}
+			var uid int
+			for _, line := range strings.Split(string(statusData), "\n") {
+				if strings.HasPrefix(line, "Name:") {
+					p.Name = strings.TrimSpace(strings.TrimPrefix(line, "Name:"))
+				}
+				if strings.HasPrefix(line, "State:") {
+					p.State = strings.TrimSpace(strings.TrimPrefix(line, "State:"))
+				}
+				if strings.HasPrefix(line, "Uid:") {
+					parts := strings.Fields(line)
+					if len(parts) >= 2 {
+						uid, _ = strconv.Atoi(parts[1])
+					}
+				}
+			}
+			if u, err := user.LookupId(fmt.Sprintf("%d", uid)); err == nil {
+				p.User = u.Username
+			} else {
+				p.User = fmt.Sprintf("%d", uid)
+			}
+			cmdline, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+			p.Command = strings.ReplaceAll(string(cmdline), "\x00", " ")
+			if p.Command == "" {
+				p.Command = p.Name
+			}
+			processes = append(processes, p)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(processes)
+	})))
+
+	mux.Handle("/api/processes/", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		path := strings.TrimPrefix(r.URL.Path, "/api/processes/")
+		pidStr := strings.Split(path, "/")[0]
+		pid, err := strconv.Atoi(pidStr)
+		if err != nil || pid <= 0 {
+			http.Error(w, "Invalid PID", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(ipc.ProcessKillReq{PID: pid})
+		forwardIPC(w, r, ipcClient, ipc.TypeProcessKill, payload)
+	}))))
+
+	mux.Handle("/api/logs/history", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		filter := r.URL.Query().Get("filter")
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+		if limit <= 0 || limit > 10000 {
+			limit = 500
+		}
+		paths := []string{"/var/log/messages", "/var/log/syslog", "/var/log/kern.log"}
+		var data []byte
+		for _, p := range paths {
+			if d, err := os.ReadFile(p); err == nil {
+				data = d
+				break
+			}
+		}
+		lines := []string{}
+		for _, line := range strings.Split(string(data), "\n") {
+			if filter != "" && !strings.Contains(line, filter) {
+				continue
+			}
+			lines = append(lines, line)
+		}
+		// reverse order (newest first)
+		for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
+			lines[i], lines[j] = lines[j], lines[i]
+		}
+		start := offset
+		if start < 0 || start > len(lines) {
+			start = 0
+		}
+		end := start + limit
+		if end > len(lines) {
+			end = len(lines)
+		}
+		result := lines[start:end]
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"lines":  result,
+			"total":  len(lines),
+			"offset": start,
+			"limit":  limit,
+		})
 	})))
 
 	mux.Handle("/api/sessions", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

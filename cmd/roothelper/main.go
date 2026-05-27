@@ -158,6 +158,22 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleApkRepoRead(req)
 	case ipc.TypeApkRepoWrite:
 		resp = b.handleApkRepoWrite(req)
+	case ipc.TypeUserLock:
+		resp = b.handleUserLock(req)
+	case ipc.TypeUserUnlock:
+		resp = b.handleUserUnlock(req)
+	case ipc.TypeSshConfigRead:
+		resp = b.handleSshConfigRead(req)
+	case ipc.TypeSshConfigWrite:
+		resp = b.handleSshConfigWrite(req)
+	case ipc.TypeCronRead:
+		resp = b.handleCronRead(req)
+	case ipc.TypeCronWrite:
+		resp = b.handleCronWrite(req)
+	case ipc.TypeProcessKill:
+		resp = b.handleProcessKill(req)
+	case ipc.TypeLogRead:
+		resp = b.handleLogRead(req)
 	default:
 		resp = b.error(req, ipc.ErrInvalidRequest, "unknown message type")
 	}
@@ -748,6 +764,148 @@ func (b *broker) handleApkRepoWrite(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrExecutionFailed, err.Error())
 	}
 	return b.ok(req, map[string]string{"status": "written"})
+}
+
+func (b *broker) handleUserLock(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/usr/bin/passwd") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/usr/bin/passwd not allowed")
+	}
+	var body ipc.UserLockReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/usr/bin/passwd", "-l", body.Username)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"username": body.Username, "status": "locked"})
+}
+
+func (b *broker) handleUserUnlock(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/usr/bin/passwd") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/usr/bin/passwd not allowed")
+	}
+	var body ipc.UserUnlockReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := b.validateUsername(body.Username); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/usr/bin/passwd", "-u", body.Username)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"username": body.Username, "status": "unlocked"})
+}
+
+func (b *broker) handleSshConfigRead(req ipc.Envelope) ipc.Envelope {
+	data, err := os.ReadFile("/etc/ssh/sshd_config")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"content": string(data)})
+}
+
+func (b *broker) handleSshConfigWrite(req ipc.Envelope) ipc.Envelope {
+	var body ipc.SshConfigWriteReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if err := os.WriteFile("/etc/ssh/sshd_config", []byte(body.Content), 0644); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"status": "written"})
+}
+
+func (b *broker) handleCronRead(req ipc.Envelope) ipc.Envelope {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/usr/bin/crontab", "-l")
+	if err != nil && len(out) == 0 {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"content": string(out)})
+}
+
+func (b *broker) handleCronWrite(req ipc.Envelope) ipc.Envelope {
+	var body ipc.CronWriteReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "/usr/bin/crontab", "-")
+	cmd.Stdin = strings.NewReader(body.Content)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"status": "written"})
+}
+
+func (b *broker) handleProcessKill(req ipc.Envelope) ipc.Envelope {
+	var body ipc.ProcessKillReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.PID <= 0 {
+		return b.error(req, ipc.ErrInvalidRequest, "invalid pid")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/bin/kill", fmt.Sprintf("%d", body.PID))
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"pid": fmt.Sprintf("%d", body.PID), "status": "killed"})
+}
+
+func (b *broker) handleLogRead(req ipc.Envelope) ipc.Envelope {
+	var body ipc.LogReadReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.Limit <= 0 || body.Limit > 10000 {
+		body.Limit = 500
+	}
+	paths := []string{"/var/log/messages", "/var/log/syslog", "/var/log/kern.log"}
+	var data []byte
+	for _, p := range paths {
+		if d, err := os.ReadFile(p); err == nil {
+			data = d
+			break
+		}
+	}
+	lines := []string{}
+	for _, line := range strings.Split(string(data), "\n") {
+		if body.Filter != "" && !strings.Contains(line, body.Filter) {
+			continue
+		}
+		lines = append(lines, line)
+	}
+	start := 0
+	if body.Offset > 0 && body.Offset < len(lines) {
+		start = body.Offset
+	}
+	end := start + body.Limit
+	if end > len(lines) {
+		end = len(lines)
+	}
+	result := lines[start:end]
+	return b.ok(req, map[string]interface{}{
+		"lines":  result,
+		"total":  len(lines),
+		"offset": start,
+		"limit":  body.Limit,
+	})
 }
 
 // ── Mount / Unmount ──────────────────────────────

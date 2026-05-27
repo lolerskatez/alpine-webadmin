@@ -138,6 +138,24 @@
                         </li>
                         <li role="none">
                             <button role="menuitem"
+                                    @click="switchTab('cron')"
+                                    :class="{active: tab==='cron'}"
+                                    :aria-current="tab==='cron' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                Cron
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
+                                    @click="switchTab('processes')"
+                                    :class="{active: tab==='processes'}"
+                                    :aria-current="tab==='processes' ? 'page' : null">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                                Processes
+                            </button>
+                        </li>
+                        <li role="none">
+                            <button role="menuitem"
                                     @click="switchTab('logs')"
                                     :class="{active: tab==='logs'}"
                                     :aria-current="tab==='logs' ? 'page' : null">
@@ -741,6 +759,14 @@
                                                             @click="resetPassword(u.username)"
                                                             :disabled="u._loading"
                                                             :aria-label="'Reset password for ' + u.username">Reset Password</button>
+                                                    <button class="btn btn-sm btn-secondary"
+                                                            @click="lockUser(u.username)"
+                                                            :disabled="u._loading"
+                                                            :aria-label="'Lock user ' + u.username">Lock</button>
+                                                    <button class="btn btn-sm"
+                                                            @click="unlockUser(u.username)"
+                                                            :disabled="u._loading"
+                                                            :aria-label="'Unlock user ' + u.username">Unlock</button>
                                                     <button class="btn btn-sm btn-danger"
                                                             @click="deleteUser(u.username)"
                                                             :disabled="u._loading"
@@ -755,7 +781,93 @@
                         </div>
                     </section>
 
-                    <!-- ============ LOGS ============ -->
+                    <!-- ============ CRON ============ -->
+                    <section x-show="tab === 'cron'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="cron-heading">
+                        <h2 id="cron-heading" class="section-title">Scheduled Tasks</h2>
+
+                        <div class="toolbar">
+                            <button @click="loadCron()" class="btn" aria-label="Refresh cron">Refresh</button>
+                            <button @click="showCronEdit = true" class="btn btn-secondary" aria-label="Edit cron">Edit</button>
+                        </div>
+
+                        <div x-show="showCronEdit" class="panel">
+                            <div class="panel-header"><h3>Edit Cron</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row">
+                                    <textarea x-model="cronContent" rows="12" style="width:100%;font-family:monospace;font-size:12px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:0.5rem;" placeholder="# min hour day month weekday command&#10;0 2 * * * /usr/sbin/backup"></textarea>
+                                </div>
+                                <div class="btn-group">
+                                    <button @click="saveCron()" class="btn">Save</button>
+                                    <button @click="showCronEdit = false" class="btn btn-secondary">Cancel</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;" x-text="cronContent || 'No cron jobs configured.'"></pre>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- ============ PROCESSES ============ -->
+                    <section x-show="tab === 'processes'"
+                             x-transition:enter="transition-enter"
+                             x-transition:enter-start="transition-enter-start"
+                             x-transition:enter-end="transition-enter-end"
+                             aria-labelledby="processes-heading">
+                        <h2 id="processes-heading" class="section-title">Processes</h2>
+
+                        <div class="toolbar">
+                            <div class="toolbar-group">
+                                <button @click="loadProcesses()" class="btn" aria-label="Refresh processes">Refresh</button>
+                            </div>
+                            <div class="toolbar-group">
+                                <input type="search"
+                                       x-model="processFilter"
+                                       placeholder="Filter processes..."
+                                       class="search-input"
+                                       aria-label="Filter processes">
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="System processes">
+                                    <thead>
+                                        <tr role="row">
+                                            <th role="columnheader">PID</th>
+                                            <th role="columnheader">Name</th>
+                                            <th role="columnheader">User</th>
+                                            <th role="columnheader">State</th>
+                                            <th role="columnheader">Command</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="p in filteredProcesses()" :key="p.pid">
+                                            <tr role="row">
+                                                <td role="cell" x-text="p.pid" class="mono"></td>
+                                                <td role="cell" x-text="p.name"></td>
+                                                <td role="cell" x-text="p.user"></td>
+                                                <td role="cell" x-text="p.state"></td>
+                                                <td role="cell" class="mono" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;" :title="p.command" x-text="p.command"></td>
+                                                <td role="cell" class="actions-col">
+                                                    <button @click="killProcess(p.pid)" class="btn btn-sm btn-danger" aria-label="Kill process">Kill</button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="filteredProcesses().length === 0" class="empty-state">No processes found.</div>
+                            </div>
+                        </div>
+                    </section>
+
                     <section x-show="tab === 'logs'"
                              x-transition:enter="transition-enter"
                              x-transition:enter-start="transition-enter-start"
@@ -782,6 +894,7 @@
                         </div>
 
                         <div class="panel">
+                            <div class="panel-header"><h3>Live Stream</h3></div>
                             <div class="panel-body">
                                 <div class="log-container"
                                      role="log"
@@ -792,6 +905,34 @@
                                         <div class="log-line" :class="'log-' + line.level" x-text="line.text"></div>
                                     </template>
                                     <div x-show="logLines.length === 0" class="empty-state">No log data. Click Stream to start.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>History</h3></div>
+                            <div class="panel-body">
+                                <div class="toolbar">
+                                    <div class="toolbar-group">
+                                        <input type="search"
+                                               x-model="logHistoryFilter"
+                                               placeholder="Search history..."
+                                               class="search-input"
+                                               @keydown.enter="searchLogHistory()"
+                                               aria-label="Search log history">
+                                        <button @click="searchLogHistory()" class="btn" aria-label="Search">Search</button>
+                                    </div>
+                                    <div class="toolbar-group">
+                                        <button @click="prevLogHistory()" class="btn btn-secondary" :disabled="logHistoryOffset === 0">Previous</button>
+                                        <button @click="nextLogHistory()" class="btn btn-secondary" :disabled="logHistoryOffset + logHistoryLimit >= logHistoryTotal">Next</button>
+                                        <span class="toolbar-meta" x-text="logHistoryTotal + ' lines' + (logHistoryTotal > 0 ? ' (' + (logHistoryOffset + 1) + '-' + Math.min(logHistoryOffset + logHistoryLimit, logHistoryTotal) + ')' : '')"></span>
+                                    </div>
+                                </div>
+                                <div class="log-container" role="log" aria-live="off" aria-label="Historical log lines">
+                                    <template x-for="line in logHistory" :key="line">
+                                        <div class="log-line" x-text="line"></div>
+                                    </template>
+                                    <div x-show="logHistory.length === 0" class="empty-state">No log history found.</div>
                                 </div>
                             </div>
                         </div>
@@ -946,6 +1087,25 @@
                                     <div class="info-row">
                                         <span class="info-label">Version</span>
                                         <span class="info-value" x-text="version || '-'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>SSH Configuration</h3></div>
+                            <div class="panel-body">
+                                <div x-show="!showSshConfigEdit">
+                                    <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:300px;white-space:pre-wrap;word-break:break-all;" x-text="sshConfig || 'No SSH config loaded.'"></pre>
+                                    <button @click="showSshConfigEdit = true" class="btn btn-sm btn-secondary" style="margin-top:0.5rem">Edit</button>
+                                </div>
+                                <div x-show="showSshConfigEdit">
+                                    <div class="form-row">
+                                        <textarea x-model="sshConfig" rows="12" style="width:100%;font-family:monospace;font-size:12px;background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:0.5rem;"></textarea>
+                                    </div>
+                                    <div class="btn-group">
+                                        <button @click="saveSshConfig()" class="btn">Save</button>
+                                        <button @click="showSshConfigEdit = false" class="btn btn-secondary">Cancel</button>
                                     </div>
                                 </div>
                             </div>

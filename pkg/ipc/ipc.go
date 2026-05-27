@@ -89,10 +89,40 @@ type UserDeleteReq struct {
 	Username string `json:"username"`
 }
 
+type UserLockReq struct {
+	Username string `json:"username"`
+}
+
+type UserUnlockReq struct {
+	Username string `json:"username"`
+}
+
 type ApkRepoReadReq struct{}
 
 type ApkRepoWriteReq struct {
 	Content string `json:"content"`
+}
+
+type SshConfigReadReq struct{}
+
+type SshConfigWriteReq struct {
+	Content string `json:"content"`
+}
+
+type CronReadReq struct{}
+
+type CronWriteReq struct {
+	Content string `json:"content"`
+}
+
+type ProcessKillReq struct {
+	PID int `json:"pid"`
+}
+
+type LogReadReq struct {
+	Filter string `json:"filter,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+	Offset int    `json:"offset,omitempty"`
 }
 
 type MountReq struct {
@@ -222,8 +252,16 @@ const (
 	TypeKModUnload     = "cap.kmod.unload"
 	TypeHostnameSet    = "cap.system.hostname"
 	TypeUserDelete     = "cap.user.delete"
+	TypeUserLock       = "cap.user.lock"
+	TypeUserUnlock     = "cap.user.unlock"
 	TypeApkRepoRead    = "cap.apk.repo.read"
 	TypeApkRepoWrite   = "cap.apk.repo.write"
+	TypeSshConfigRead  = "cap.ssh.config.read"
+	TypeSshConfigWrite = "cap.ssh.config.write"
+	TypeCronRead       = "cap.cron.read"
+	TypeCronWrite      = "cap.cron.write"
+	TypeProcessKill    = "cap.process.kill"
+	TypeLogRead        = "cap.log.read"
 	TypeResponseOK     = "response.ok"
 	TypeResponseError  = "response.error"
 )

@@ -85,6 +85,25 @@ function app() {
         apkRepos: '',
         showApkRepoEdit: false,
 
+        // ── SSH Config ────────────────────────────────────
+        sshConfig: '',
+        showSshConfigEdit: false,
+
+        // ── Cron ──────────────────────────────────────────
+        cronContent: '',
+        showCronEdit: false,
+
+        // ── Processes ─────────────────────────────────────
+        processes: [],
+        processFilter: '',
+
+        // ── Log History ───────────────────────────────────
+        logHistory: [],
+        logHistoryTotal: 0,
+        logHistoryFilter: '',
+        logHistoryOffset: 0,
+        logHistoryLimit: 100,
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -198,10 +217,12 @@ function app() {
                 case 'network': this.loadNetwork(); break;
                 case 'storage': this.loadStorage(); break;
                 case 'users': this.loadUsers(); break;
-                case 'logs': break; // handled by toggle
+                case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); break;
                 case 'modules': this.loadKMod(); break;
+                case 'cron': this.loadCron(); break;
+                case 'processes': this.loadProcesses(); break;
             }
         },
 
@@ -571,6 +592,44 @@ function app() {
             } catch (e) { this.showAlert('Delete failed', 'error'); }
         },
 
+        async lockUser(username) {
+            if (!confirm(`Lock user ${username}?`)) return;
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(username)}/lock`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                if (r.ok) {
+                    this.showAlert('User locked', 'success');
+                    this.loadUsers();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Lock failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Lock failed', 'error'); }
+        },
+
+        async unlockUser(username) {
+            if (!confirm(`Unlock user ${username}?`)) return;
+            try {
+                const r = await fetch(`/api/users/${encodeURIComponent(username)}/unlock`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username })
+                });
+                if (r.ok) {
+                    this.showAlert('User unlocked', 'success');
+                    this.loadUsers();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Unlock failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Unlock failed', 'error'); }
+        },
+
         async createUser() {
             this.userError = '';
             try {
@@ -794,6 +853,130 @@ function app() {
                     this.showAlert('Save failed: ' + err, 'error');
                 }
             } catch (e) { this.showAlert('Save failed', 'error'); }
+        },
+
+        async loadSshConfig() {
+            try {
+                const r = await fetch('/api/ssh/config', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.sshConfig = data.content || '';
+            } catch (e) { this.showAlert('Failed to load SSH config', 'error'); }
+        },
+
+        async saveSshConfig() {
+            try {
+                const r = await fetch('/api/ssh/config', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.sshConfig })
+                });
+                if (r.ok) {
+                    this.showAlert('SSH config saved', 'success');
+                    this.showSshConfigEdit = false;
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Save failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Save failed', 'error'); }
+        },
+
+        async loadCron() {
+            try {
+                const r = await fetch('/api/cron', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.cronContent = data.content || '';
+            } catch (e) { this.showAlert('Failed to load cron', 'error'); }
+        },
+
+        async saveCron() {
+            try {
+                const r = await fetch('/api/cron', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: this.cronContent })
+                });
+                if (r.ok) {
+                    this.showAlert('Cron saved', 'success');
+                    this.showCronEdit = false;
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Save failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Save failed', 'error'); }
+        },
+
+        async loadProcesses() {
+            try {
+                const r = await fetch('/api/processes', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.processes = await r.json();
+            } catch (e) { this.showAlert('Failed to load processes', 'error'); }
+        },
+
+        filteredProcesses() {
+            if (!this.processFilter) return this.processes;
+            const f = this.processFilter.toLowerCase();
+            return this.processes.filter(p =>
+                (p.name && p.name.toLowerCase().includes(f)) ||
+                (p.user && p.user.toLowerCase().includes(f)) ||
+                (p.command && p.command.toLowerCase().includes(f))
+            );
+        },
+
+        async killProcess(pid) {
+            if (!confirm(`Kill process ${pid}?`)) return;
+            try {
+                const r = await fetch(`/api/processes/${pid}`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pid })
+                });
+                if (r.ok) {
+                    this.showAlert('Process killed', 'success');
+                    this.loadProcesses();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Kill failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Kill failed', 'error'); }
+        },
+
+        async loadLogHistory() {
+            try {
+                const params = new URLSearchParams();
+                if (this.logHistoryFilter) params.set('filter', this.logHistoryFilter);
+                params.set('offset', this.logHistoryOffset);
+                params.set('limit', this.logHistoryLimit);
+                const r = await fetch('/api/logs/history?' + params.toString(), { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.logHistory = data.lines || [];
+                this.logHistoryTotal = data.total || 0;
+            } catch (e) { this.showAlert('Failed to load log history', 'error'); }
+        },
+
+        async searchLogHistory() {
+            this.logHistoryOffset = 0;
+            await this.loadLogHistory();
+        },
+
+        async nextLogHistory() {
+            if (this.logHistoryOffset + this.logHistoryLimit < this.logHistoryTotal) {
+                this.logHistoryOffset += this.logHistoryLimit;
+                await this.loadLogHistory();
+            }
+        },
+
+        async prevLogHistory() {
+            if (this.logHistoryOffset > 0) {
+                this.logHistoryOffset = Math.max(0, this.logHistoryOffset - this.logHistoryLimit);
+                await this.loadLogHistory();
+            }
         },
 
         async powerAction(action) {
