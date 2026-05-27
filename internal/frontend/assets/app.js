@@ -189,6 +189,13 @@ function app() {
 
         // ── dmesg ─────────────────────────────────────────
         dmesgContent: '',
+        dmesgFilter: '', // '', 'error', 'warn', 'info'
+
+        // ── Open Files ────────────────────────────────────
+        openFilesContent: '',
+
+        // ── Disk Stats ────────────────────────────────────
+        diskStatsContent: '',
 
         // ── Network Addresses ───────────────────────────
         netAddrContent: '',
@@ -351,11 +358,11 @@ function app() {
                 case 'services': this.loadServices(); this.loadServicesStatus(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
                 case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); this.loadNetConnections(); this.loadArp(); break;
-                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); this.loadPartitions(); break;
+                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); this.loadPartitions(); this.loadDiskStats(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); this.loadUsbDevices(); this.loadPciDevices(); this.loadEnviron(); this.loadKernelVersion(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); this.loadUsbDevices(); this.loadPciDevices(); this.loadEnviron(); this.loadKernelVersion(); this.loadResolv(); this.loadOpenFiles(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -1580,11 +1587,32 @@ function app() {
         // ── dmesg ─────────────────────────────────────────
         async loadDmesg() {
             try {
-                const r = await fetch('/api/system/dmesg', { credentials: 'same-origin' });
+                const params = this.dmesgFilter ? `?level=${encodeURIComponent(this.dmesgFilter)}` : '';
+                const r = await fetch(`/api/system/dmesg${params}`, { credentials: 'same-origin' });
                 if (!r.ok) return;
                 const data = await r.json();
                 this.dmesgContent = data.content || '';
             } catch (e) { this.dmesgContent = ''; }
+        },
+
+        // ── Open Files ────────────────────────────────────
+        async loadOpenFiles() {
+            try {
+                const r = await fetch('/api/system/openfiles', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.openFilesContent = data.content || '';
+            } catch (e) { this.openFilesContent = ''; }
+        },
+
+        // ── Disk Stats ────────────────────────────────────
+        async loadDiskStats() {
+            try {
+                const r = await fetch('/api/storage/diskstats', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.diskStatsContent = data.content || '';
+            } catch (e) { this.diskStatsContent = ''; }
         },
 
         // ── Network Addresses ───────────────────────────

@@ -620,6 +620,17 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
 	})))
 
+	// Disk I/O statistics (read-only)
+	mux.Handle("/api/storage/diskstats", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/diskstats")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
+	})))
+
 	mux.Handle("/api/fstab", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			forwardIPC(w, r, ipcClient, ipc.TypeFstabRead, []byte("{}"))
@@ -1441,7 +1452,33 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+		content := string(output)
+		// Optional severity filter: error, warn, info
+		if level := r.URL.Query().Get("level"); level != "" {
+			lines := strings.Split(content, "\n")
+			var filtered []string
+			for _, line := range lines {
+				upper := strings.ToUpper(line)
+				switch level {
+				case "error":
+					if strings.Contains(upper, "ERROR") || strings.Contains(upper, "ERR") || strings.Contains(upper, "FATAL") || strings.Contains(upper, "PANIC") {
+						filtered = append(filtered, line)
+					}
+				case "warn":
+					if strings.Contains(upper, "WARN") || strings.Contains(upper, "WARNING") {
+						filtered = append(filtered, line)
+					}
+				case "info":
+					if strings.Contains(upper, "INFO") || strings.Contains(upper, "NOTICE") {
+						filtered = append(filtered, line)
+					}
+				default:
+					filtered = append(filtered, line)
+				}
+			}
+			content = strings.Join(filtered, "\n")
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": content})
 	})))
 
 	// Network addresses (read-only)
@@ -1467,6 +1504,25 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
 			return
 		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// Open files overview (read-only)
+	mux.Handle("/api/system/openfiles", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		lsofBin := findBin("lsof", "/usr/bin/lsof", "/usr/sbin/lsof", "/sbin/lsof")
+		if _, statErr := os.Stat(lsofBin); statErr == nil {
+			output, err = exec.Command(lsofBin, "-n", "-P").Output()
+		}
+		if err != nil || len(output) == 0 {
+			output = []byte("lsof not available")
+		}
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
 	})))
 

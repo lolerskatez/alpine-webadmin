@@ -909,6 +909,13 @@
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="partitionsContent || 'No partition data available.'"></pre>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Disk I/O Statistics</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="diskStatsContent || 'No disk I/O data available.'"></pre>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ USERS ============ -->
@@ -1616,7 +1623,20 @@
                         <div class="panel">
                             <div class="panel-header"><h3>Boot Log (dmesg)</h3></div>
                             <div class="panel-body">
+                                <div class="btn-group" style="margin-bottom:0.5rem;">
+                                    <button @click="dmesgFilter=''; loadDmesg()" :class="dmesgFilter==='' ? 'btn' : 'btn btn-secondary'" class="btn-sm">All</button>
+                                    <button @click="dmesgFilter='error'; loadDmesg()" :class="dmesgFilter==='error' ? 'btn' : 'btn btn-secondary'" class="btn-sm">Error</button>
+                                    <button @click="dmesgFilter='warn'; loadDmesg()" :class="dmesgFilter==='warn' ? 'btn' : 'btn btn-secondary'" class="btn-sm">Warning</button>
+                                    <button @click="dmesgFilter='info'; loadDmesg()" :class="dmesgFilter==='info' ? 'btn' : 'btn btn-secondary'" class="btn-sm">Info</button>
+                                </div>
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="dmesgContent || 'No boot log available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Open Files</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="openFilesContent || 'No open files data available.'"></pre>
                             </div>
                         </div>
 
