@@ -210,6 +210,22 @@ function app() {
         // ── Swaps ─────────────────────────────────────────
         swapsContent: '',
 
+        // ── USB Devices ───────────────────────────────────
+        usbDevicesContent: '',
+
+        // ── PCI Devices ───────────────────────────────────
+        pciDevicesContent: '',
+
+        // ── Network Connections ───────────────────────────
+        netConnectionsContent: '',
+
+        // ── Environment Variables ─────────────────────────
+        environVars: {},
+
+        // ── Package Depends ───────────────────────────────
+        packageDepends: {},
+        packageDependsName: '',
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -322,12 +338,12 @@ function app() {
                 case 'dashboard': this.loadSystemAlerts(); break;
                 case 'services': this.loadServices(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
-                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); break;
+                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); this.loadNetConnections(); break;
                 case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); this.loadUsbDevices(); this.loadPciDevices(); this.loadEnviron(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -1631,6 +1647,56 @@ function app() {
                 if (r.ok) { this.showAlert(`DHCP ${action}ed on ${iface}`, 'success'); }
                 else { const err = await r.text(); this.showAlert(`DHCP toggle failed: ${err}`, 'error'); }
             } catch (e) { this.showAlert('DHCP toggle failed', 'error'); }
+        },
+
+        // ── USB Devices ───────────────────────────────────
+        async loadUsbDevices() {
+            try {
+                const r = await fetch('/api/hardware/usb', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.usbDevicesContent = data.content || '';
+            } catch (e) { this.usbDevicesContent = ''; }
+        },
+
+        // ── PCI Devices ─────────────────────────────────
+        async loadPciDevices() {
+            try {
+                const r = await fetch('/api/hardware/pci', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.pciDevicesContent = data.content || '';
+            } catch (e) { this.pciDevicesContent = ''; }
+        },
+
+        // ── Network Connections ───────────────────────────
+        async loadNetConnections() {
+            try {
+                const r = await fetch('/api/network/connections', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.netConnectionsContent = data.content || '';
+            } catch (e) { this.netConnectionsContent = ''; }
+        },
+
+        // ── Environment Variables ───────────────────────────
+        async loadEnviron() {
+            try {
+                const r = await fetch('/api/system/environ', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.environVars = await r.json();
+            } catch (e) { this.environVars = {}; }
+        },
+
+        // ── Package Depends ─────────────────────────────────
+        async loadPackageDepends(name) {
+            if (!name) return;
+            this.packageDependsName = name;
+            try {
+                const r = await fetch(`/api/packages/depends?name=${encodeURIComponent(name)}`, { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.packageDepends = await r.json();
+            } catch (e) { this.packageDepends = {}; }
         },
 
         // ── File Viewer ───────────────────────────────────

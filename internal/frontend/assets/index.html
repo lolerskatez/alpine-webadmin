@@ -587,6 +587,9 @@
                                                             @click="showRemoveConfirm(pkg.name)"
                                                             :disabled="pkgOpLoading"
                                                             :aria-label="'Remove ' + pkg.name">Remove</button>
+                                                    <button class="btn btn-sm btn-secondary"
+                                                            @click="loadPackageDepends(pkg.name)"
+                                                            :aria-label="'Depends for ' + pkg.name">Depends</button>
                                                 </td>
                                             </tr>
                                         </template>
@@ -603,6 +606,19 @@
                                             @click="loadMorePackages()"
                                             aria-label="Load more packages">Load More</button>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="panel" x-show="packageDependsName">
+                            <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+                                <h3 x-text="'Dependencies: ' + packageDependsName"></h3>
+                                <button @click="packageDependsName = ''; packageDepends = {};" class="btn btn-sm btn-secondary">Close</button>
+                            </div>
+                            <div class="panel-body">
+                                <h4 style="margin:0.5rem 0 0.25rem;font-size:12px;color:var(--text-muted);">Depends</h4>
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;" x-text="packageDepends.depends || 'No dependency data.'"></pre>
+                                <h4 style="margin:0.5rem 0 0.25rem;font-size:12px;color:var(--text-muted);">Reverse Depends</h4>
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;" x-text="packageDepends.reverse_depends || 'No reverse dependency data.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -725,6 +741,13 @@
                             <div class="panel-header"><h3>Interface Addresses</h3></div>
                             <div class="panel-body">
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="netAddrContent || 'No address data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Network Connections</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="netConnectionsContent || 'No connection data available.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -1631,6 +1654,37 @@
                                     <button @click="loadFileViewer()" class="btn">View</button>
                                 </div>
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;margin-top:0.5rem;" x-text="fileViewerContent || 'Enter a path and click View.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>USB Devices</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="usbDevicesContent || 'No USB device data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>PCI Devices</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="pciDevicesContent || 'No PCI device data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Environment Variables</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Environment variables">
+                                    <tbody>
+                                        <template x-for="(value, key) in environVars" :key="key">
+                                            <tr role="row">
+                                                <td role="cell" style="font-weight:600;width:30%;font-size:12px;" x-text="key"></td>
+                                                <td role="cell" x-text="value" style="font-size:12px;word-break:break-all;" class="mono"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="Object.keys(environVars).length === 0" class="empty-state">No environment data available.</div>
                             </div>
                         </div>
 

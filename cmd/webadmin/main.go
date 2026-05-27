@@ -432,6 +432,29 @@ func main() {
 		forwardIPC(w, r, ipcClient, ipc.TypePackageOpQuery, payload)
 	})))
 
+	// Package dependency info
+	mux.Handle("/api/packages/depends", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		name := r.URL.Query().Get("name")
+		if name == "" {
+			http.Error(w, "name required", http.StatusBadRequest)
+			return
+		}
+		var depends, revDepends string
+		apkBin := findBin("apk", "/sbin/apk")
+		if out, err := exec.Command(apkBin, "info", "-R", name).Output(); err == nil {
+			depends = string(out)
+		}
+		if out, err := exec.Command(apkBin, "info", "-r", name).Output(); err == nil {
+			revDepends = string(out)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"depends": depends, "reverse_depends": revDepends})
+	})))
+
 	mux.Handle("/api/services/enable", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -574,6 +597,61 @@ func main() {
 			return
 		}
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	})))
+
+	// USB devices (read-only)
+	mux.Handle("/api/hardware/usb", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		lsusbBin := findBin("lsusb", "/usr/bin/lsusb", "/bin/lsusb")
+		if _, statErr := os.Stat(lsusbBin); statErr == nil {
+			output, err = exec.Command(lsusbBin).Output()
+		}
+		if err != nil || len(output) == 0 {
+			var lines []string
+			entries, _ := os.ReadDir("/sys/bus/usb/devices")
+			for _, entry := range entries {
+				if strings.Contains(entry.Name(), ":") {
+					continue
+				}
+				vendor, _ := os.ReadFile(filepath.Join("/sys/bus/usb/devices", entry.Name(), "idVendor"))
+				product, _ := os.ReadFile(filepath.Join("/sys/bus/usb/devices", entry.Name(), "idProduct"))
+				manuf, _ := os.ReadFile(filepath.Join("/sys/bus/usb/devices", entry.Name(), "manufacturer"))
+				prod, _ := os.ReadFile(filepath.Join("/sys/bus/usb/devices", entry.Name(), "product"))
+				if len(vendor) > 0 || len(manuf) > 0 {
+					lines = append(lines, fmt.Sprintf("Bus %s Device %s: ID %s:%s %s %s",
+						entry.Name(), entry.Name(), strings.TrimSpace(string(vendor)), strings.TrimSpace(string(product)),
+						strings.TrimSpace(string(manuf)), strings.TrimSpace(string(prod))))
+				}
+			}
+			output = []byte(strings.Join(lines, "\n"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// PCI devices (read-only)
+	mux.Handle("/api/hardware/pci", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		lspciBin := findBin("lspci", "/usr/bin/lspci", "/bin/lspci")
+		if _, statErr := os.Stat(lspciBin); statErr == nil {
+			output, err = exec.Command(lspciBin).Output()
+		}
+		if err != nil || len(output) == 0 {
+			data, _ := os.ReadFile("/proc/bus/pci/devices")
+			output = data
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
 	})))
 
 	mux.Handle("/api/users", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1451,6 +1529,29 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
 	})))
 
+	// Init environment variables (read-only)
+	mux.Handle("/api/system/environ", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/1/environ")
+		env := map[string]string{}
+		for _, kv := range strings.Split(string(data), "\x00") {
+			if kv == "" {
+				continue
+			}
+			parts := strings.SplitN(kv, "=", 2)
+			if len(parts) == 2 {
+				env[parts[0]] = parts[1]
+			} else {
+				env[kv] = ""
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(env)
+	})))
+
 	// DHCP toggle
 	mux.Handle("/api/network/dhcp", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -1471,6 +1572,38 @@ func main() {
 		payload, _ := json.Marshal(map[string]string{"iface": iface, "action": action})
 		forwardIPC(w, r, ipcClient, ipc.TypeDhcpToggle, payload)
 	}))))
+
+	// Network connections (read-only)
+	mux.Handle("/api/network/connections", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		ssBin := findBin("ss", "/usr/sbin/ss", "/sbin/ss", "/bin/ss")
+		if _, statErr := os.Stat(ssBin); statErr == nil {
+			output, err = exec.Command(ssBin, "-tulpn").Output()
+		}
+		if err != nil || len(output) == 0 {
+			netstatBin := findBin("netstat", "/usr/bin/netstat", "/bin/netstat")
+			if _, statErr := os.Stat(netstatBin); statErr == nil {
+				output, err = exec.Command(netstatBin, "-tulpn").Output()
+			}
+		}
+		if err != nil || len(output) == 0 {
+			lsofBin := findBin("lsof", "/usr/bin/lsof", "/bin/lsof")
+			if _, statErr := os.Stat(lsofBin); statErr == nil {
+				output, err = exec.Command(lsofBin, "-i", "-P", "-n").Output()
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil && len(output) == 0 {
+			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
 
 	mux.Handle("/api/logs", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
