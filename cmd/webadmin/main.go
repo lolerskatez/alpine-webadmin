@@ -235,6 +235,25 @@ func main() {
 		forwardIPC(w, r, ipcClient, ipc.TypeServiceList, []byte("{}"))
 	}))))
 
+	// Running services status detail (read-only)
+	mux.Handle("/api/services/status", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		rcStatusBin := findBin("rc-status", "/sbin/rc-status", "/usr/sbin/rc-status")
+		if _, statErr := os.Stat(rcStatusBin); statErr == nil {
+			output, err = exec.Command(rcStatusBin, "-a").Output()
+		}
+		if err != nil || len(output) == 0 {
+			output = []byte("rc-status not available")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
 	mux.Handle("/api/services/", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/api/services/")
 		parts := strings.Split(path, "/")
@@ -579,6 +598,26 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte(stdout))
+	})))
+
+	// Disk partitions (read-only)
+	mux.Handle("/api/storage/partitions", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		fdiskBin := findBin("fdisk", "/sbin/fdisk", "/usr/sbin/fdisk")
+		if _, statErr := os.Stat(fdiskBin); statErr == nil {
+			output, err = exec.Command(fdiskBin, "-l").Output()
+		}
+		if err != nil || len(output) == 0 {
+			data, _ := os.ReadFile("/proc/partitions")
+			output = data
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
 	})))
 
 	mux.Handle("/api/fstab", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1552,6 +1591,17 @@ func main() {
 		json.NewEncoder(w).Encode(env)
 	})))
 
+	// Kernel version detail (read-only)
+	mux.Handle("/api/system/version", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		data, _ := os.ReadFile("/proc/version")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": strings.TrimSpace(string(data))})
+	})))
+
 	// DHCP toggle
 	mux.Handle("/api/network/dhcp", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -1602,6 +1652,26 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
 			return
 		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// ARP table (read-only)
+	mux.Handle("/api/network/arp", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		ipBin := findBin("ip", "/sbin/ip", "/usr/sbin/ip", "/bin/ip")
+		if _, statErr := os.Stat(ipBin); statErr == nil {
+			output, err = exec.Command(ipBin, "neigh").Output()
+		}
+		if err != nil || len(output) == 0 {
+			data, _ := os.ReadFile("/proc/net/arp")
+			output = data
+		}
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
 	})))
 

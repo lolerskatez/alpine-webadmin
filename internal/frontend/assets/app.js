@@ -226,6 +226,18 @@ function app() {
         packageDepends: {},
         packageDependsName: '',
 
+        // ── ARP Table ─────────────────────────────────────
+        arpContent: '',
+
+        // ── Kernel Version ────────────────────────────────
+        kernelVersionContent: '',
+
+        // ── Disk Partitions ───────────────────────────────
+        partitionsContent: '',
+
+        // ── Services Status ───────────────────────────────
+        servicesStatusContent: '',
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -336,14 +348,14 @@ function app() {
         loadTabData() {
             switch (this.tab) {
                 case 'dashboard': this.loadSystemAlerts(); break;
-                case 'services': this.loadServices(); break;
+                case 'services': this.loadServices(); this.loadServicesStatus(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
-                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); this.loadNetConnections(); break;
-                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); break;
+                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); this.loadNetConnections(); this.loadArp(); break;
+                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); this.loadPartitions(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); this.loadUsbDevices(); this.loadPciDevices(); this.loadEnviron(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); this.loadSshHostKeys(); this.loadMotd(); this.loadCmdline(); this.loadSwaps(); this.loadUsbDevices(); this.loadPciDevices(); this.loadEnviron(); this.loadKernelVersion(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -1697,6 +1709,46 @@ function app() {
                 if (!r.ok) return;
                 this.packageDepends = await r.json();
             } catch (e) { this.packageDepends = {}; }
+        },
+
+        // ── ARP Table ─────────────────────────────────────
+        async loadArp() {
+            try {
+                const r = await fetch('/api/network/arp', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.arpContent = data.content || '';
+            } catch (e) { this.arpContent = ''; }
+        },
+
+        // ── Kernel Version ────────────────────────────────
+        async loadKernelVersion() {
+            try {
+                const r = await fetch('/api/system/version', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.kernelVersionContent = data.content || '';
+            } catch (e) { this.kernelVersionContent = ''; }
+        },
+
+        // ── Disk Partitions ───────────────────────────────
+        async loadPartitions() {
+            try {
+                const r = await fetch('/api/storage/partitions', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.partitionsContent = data.content || '';
+            } catch (e) { this.partitionsContent = ''; }
+        },
+
+        // ── Services Status ───────────────────────────────
+        async loadServicesStatus() {
+            try {
+                const r = await fetch('/api/services/status', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.servicesStatusContent = data.content || '';
+            } catch (e) { this.servicesStatusContent = ''; }
         },
 
         // ── File Viewer ───────────────────────────────────

@@ -489,6 +489,13 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Running Services Status</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="servicesStatusContent || 'No status data available.'"></pre>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ PACKAGES ============ -->
@@ -750,6 +757,13 @@
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="netConnectionsContent || 'No connection data available.'"></pre>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>ARP Table</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="arpContent || 'No ARP data available.'"></pre>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ STORAGE ============ -->
@@ -886,6 +900,13 @@
                                     <button @click="loadSmart()" class="btn">Check</button>
                                 </div>
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;margin-top:0.5rem;" x-text="smartContent || 'Select a device and click Check.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Disk Partitions</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="partitionsContent || 'No partition data available.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -1636,6 +1657,13 @@
                             <div class="panel-header"><h3>Kernel Boot Parameters</h3></div>
                             <div class="panel-body">
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;" x-text="cmdlineContent || 'No boot parameters available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Kernel Version</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:200px;white-space:pre-wrap;word-break:break-all;" x-text="kernelVersionContent || 'No kernel version data available.'"></pre>
                             </div>
                         </div>
 
