@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -95,8 +96,12 @@ func TestQuickEnvelopeProperties(t *testing.T) {
 
 // TestLargePayload tests handling of very large payloads.
 func TestLargePayload(t *testing.T) {
-	payload := make([]byte, 1024*1024) // 1MB
-	rand.New(rand.NewSource(42)).Read(payload)
+	randomBytes := make([]byte, 1024*1024) // 1MB
+	rand.New(rand.NewSource(42)).Read(randomBytes)
+	// json.RawMessage requires valid JSON — base64-encode the random data
+	// inside a JSON string so it marshals/unmarshals correctly.
+	encoded := base64.StdEncoding.EncodeToString(randomBytes)
+	payload := json.RawMessage(`"` + encoded + `"`)
 
 	var buf bytes.Buffer
 	env := Envelope{Version: Version, MessageType: "test", Payload: payload}
