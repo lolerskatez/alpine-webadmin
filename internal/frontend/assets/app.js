@@ -160,6 +160,15 @@ function app() {
         resolvContent: '',
         showResolvEdit: false,
 
+        // ── Firewall ──────────────────────────────────────
+        firewallContent: '',
+
+        // ── Routes ────────────────────────────────────────
+        routesContent: '',
+
+        // ── Clock ─────────────────────────────────────────
+        clockDatetime: '',
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -272,7 +281,7 @@ function app() {
                 case 'dashboard': this.loadSystemAlerts(); break;
                 case 'services': this.loadServices(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
-                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); break;
+                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); break;
                 case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
@@ -1434,6 +1443,41 @@ function app() {
                 if (r.ok) { this.showAlert('resolv.conf saved', 'success'); this.showResolvEdit = false; }
                 else { const err = await r.text(); this.showAlert('resolv.conf save failed: ' + err, 'error'); }
             } catch (e) { this.showAlert('resolv.conf save failed', 'error'); }
+        },
+
+        // ── Firewall ──────────────────────────────────────
+        async loadFirewall() {
+            try {
+                const r = await fetch('/api/firewall', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.firewallContent = data.content || '';
+            } catch (e) { /* silent */ }
+        },
+
+        // ── Routes ────────────────────────────────────────
+        async loadRoutes() {
+            try {
+                const r = await fetch('/api/network/routes', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.routesContent = data.content || '';
+            } catch (e) { /* silent */ }
+        },
+
+        // ── Clock ─────────────────────────────────────────
+        async saveClock() {
+            if (!this.clockDatetime) return;
+            try {
+                const r = await fetch('/api/system/clock', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ datetime: this.clockDatetime })
+                });
+                if (r.ok) { this.showAlert('System clock updated', 'success'); }
+                else { const err = await r.text(); this.showAlert('Clock update failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('Clock update failed', 'error'); }
         },
 
         // ── Config Export/Import ──────────────────────────

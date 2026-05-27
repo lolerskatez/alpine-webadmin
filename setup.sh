@@ -526,6 +526,31 @@ install_binaries() {
     log_success "Binaries installed to $INSTALL_PREFIX"
 }
 
+generate_tls_cert() {
+    log_info "Generating self-signed TLS certificate..."
+
+    local cert_file="$CONFIG_DIR/tls.crt"
+    local key_file="$CONFIG_DIR/tls.key"
+
+    if [ -f "$cert_file" ] && [ -f "$key_file" ]; then
+        log_warn "TLS cert/key already exist, skipping generation"
+        return 0
+    fi
+
+    if command -v openssl >/dev/null 2>&1; then
+        openssl req -x509 -newkey rsa:2048 \
+            -keyout "$key_file" -out "$cert_file" \
+            -sha256 -days 3650 -nodes \
+            -subj "/CN=Alpine WebAdmin" 2>/dev/null
+        chmod 600 "$key_file"
+        chmod 644 "$cert_file"
+        chown root:root "$key_file" "$cert_file"
+        log_success "Self-signed TLS certificate generated"
+    else
+        log_warn "openssl not available; skipping TLS cert generation"
+    fi
+}
+
 create_config() {
     log_info "Creating configuration..."
     
@@ -536,12 +561,14 @@ create_config() {
     
     cat > "$CONFIG_DIR/config.json" <<'EOF'
 {
-  "listen": ":8080",
+  "listen": ":8443",
   "ipc_socket": "/run/webadmin/ipc.sock",
   "session_ttl": 3600,
   "ws_max_conns": 10,
   "rate_limit_rps": 20,
-  "allowed_helpers": ["/sbin/rc-service", "/sbin/rc-status", "/sbin/apk"]
+  "allowed_helpers": ["/sbin/rc-service", "/sbin/rc-status", "/sbin/apk"],
+  "tls_cert": "/etc/webadmin/tls.crt",
+  "tls_key": "/etc/webadmin/tls.key"
 }
 EOF
     
@@ -761,6 +788,7 @@ main() {
             create_directories
             install_binaries
             create_config
+            generate_tls_cert
             create_password_hash
             install_init_scripts
             enable_services
@@ -771,7 +799,7 @@ main() {
             log_success "Deployment complete!"
             log_info ""
             log_info "Access the web interface:"
-            log_info "  URL: http://localhost:8080"
+            log_info "  URL: https://localhost:8443"
             log_info "  Username: admin"
             log_info "  Password: admin"
             log_info ""
@@ -824,6 +852,7 @@ main() {
             create_directories
             install_binaries
             create_config
+            generate_tls_cert
             create_password_hash
             install_init_scripts
             enable_services
@@ -834,7 +863,7 @@ main() {
             log_success "Setup complete!"
             log_info ""
             log_info "Access the web interface:"
-            log_info "  URL: http://localhost:8080"
+            log_info "  URL: https://localhost:8443"
             log_info "  Username: admin"
             log_info "  Password: admin"
             log_info ""

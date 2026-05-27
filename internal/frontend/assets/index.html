@@ -696,6 +696,20 @@
                                 <div x-show="networkInterfaces.length === 0" class="empty-state">No interface data available.</div>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Routes</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:300px;white-space:pre-wrap;word-break:break-all;" x-text="routesContent || 'No route data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Firewall</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="firewallContent || 'No firewall data available.'"></pre>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ STORAGE ============ -->
@@ -1334,6 +1348,20 @@
                                             <button @click="toggleNtp()" class="btn btn-sm btn-secondary" style="margin-left:0.5rem;" x-text="ntpEnabled ? 'Disable' : 'Enable'" aria-label="Toggle NTP"></button>
                                         </span>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>System Clock</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row">
+                                    <label for="clock-input">Date/Time</label>
+                                    <input id="clock-input" type="text" x-model="clockDatetime" placeholder="YYYY-MM-DD HH:MM:SS" aria-label="System clock datetime">
+                                </div>
+                                <div class="btn-group">
+                                    <button @click="saveClock()" class="btn">Set Clock</button>
+                                    <button @click="clockDatetime = ''" class="btn btn-secondary">Clear</button>
                                 </div>
                             </div>
                         </div>

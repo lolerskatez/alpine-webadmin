@@ -1106,6 +1106,58 @@ func main() {
 		forwardIPC(w, r, ipcClient, ipc.TypeShutdown, payload)
 	}))))
 
+	// Firewall status (read-only)
+	mux.Handle("/api/firewall", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var output []byte
+		var err error
+		nftBin := findBin("nft", "/usr/sbin/nft", "/sbin/nft")
+		if _, statErr := os.Stat(nftBin); statErr == nil {
+			output, err = exec.Command(nftBin, "list", "ruleset").Output()
+		}
+		if err != nil || len(output) == 0 {
+			iptablesBin := findBin("iptables", "/usr/sbin/iptables", "/sbin/iptables")
+			if _, statErr := os.Stat(iptablesBin); statErr == nil {
+				output, err = exec.Command(iptablesBin, "-L", "-n", "-v").Output()
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// Network routes (read-only)
+	mux.Handle("/api/network/routes", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		ipBin := findBin("ip", "/usr/sbin/ip", "/sbin/ip")
+		var output []byte
+		var err error
+		if _, statErr := os.Stat(ipBin); statErr == nil {
+			output, err = exec.Command(ipBin, "route").Output()
+		}
+		if err != nil || len(output) == 0 {
+			routeBin := findBin("route", "/usr/sbin/route", "/sbin/route")
+			if _, statErr := os.Stat(routeBin); statErr == nil {
+				output, err = exec.Command(routeBin, "-n").Output()
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
 	mux.Handle("/api/logs", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1391,6 +1443,21 @@ func main() {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})))
 
+	// System clock setter
+	mux.Handle("/api/system/clock", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body ipc.ClockSetReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(body)
+		forwardIPC(w, r, ipcClient, ipc.TypeClockSet, payload)
+	}))))
+
 	// Config export
 	mux.Handle("/api/config/export", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -1433,6 +1500,130 @@ func main() {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}))))
+
+	// Prometheus /metrics endpoint
+	mux.Handle("/metrics", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		var out strings.Builder
+		now := time.Now().Unix()
+
+		// CPU load
+		if data, err := os.ReadFile("/proc/loadavg"); err == nil {
+			parts := strings.Fields(string(data))
+			if len(parts) > 0 {
+				out.WriteString(fmt.Sprintf("# HELP node_load1 1m load average\n# TYPE node_load1 gauge\nnode_load1 %s\n", parts[0]))
+			}
+			if len(parts) > 1 {
+				out.WriteString(fmt.Sprintf("# HELP node_load5 5m load average\n# TYPE node_load5 gauge\nnode_load5 %s\n", parts[1]))
+			}
+			if len(parts) > 2 {
+				out.WriteString(fmt.Sprintf("# HELP node_load15 15m load average\n# TYPE node_load15 gauge\nnode_load15 %s\n", parts[2]))
+			}
+		}
+		out.WriteString(fmt.Sprintf("# HELP node_cpu_count Number of logical CPUs\n# TYPE node_cpu_count gauge\nnode_cpu_count %d\n", runtime.NumCPU()))
+
+		// Memory
+		var memTotal, memFree, memAvailable, memBuffers, memCached int64
+		if data, err := os.ReadFile("/proc/meminfo"); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				var name string
+				var val int64
+				if n, _ := fmt.Sscanf(line, "%s %d", &name, &val); n == 2 {
+					switch strings.TrimSuffix(name, ":") {
+					case "MemTotal":
+						memTotal = val * 1024
+					case "MemFree":
+						memFree = val * 1024
+					case "MemAvailable":
+						memAvailable = val * 1024
+					case "Buffers":
+						memBuffers = val * 1024
+					case "Cached":
+						memCached = val * 1024
+					}
+				}
+			}
+		}
+		if memTotal > 0 {
+			out.WriteString(fmt.Sprintf("# HELP node_memory_MemTotal_bytes Total memory\n# TYPE node_memory_MemTotal_bytes gauge\nnode_memory_MemTotal_bytes %d\n", memTotal))
+			out.WriteString(fmt.Sprintf("# HELP node_memory_MemFree_bytes Free memory\n# TYPE node_memory_MemFree_bytes gauge\nnode_memory_MemFree_bytes %d\n", memFree))
+			if memAvailable > 0 {
+				out.WriteString(fmt.Sprintf("# HELP node_memory_MemAvailable_bytes Available memory\n# TYPE node_memory_MemAvailable_bytes gauge\nnode_memory_MemAvailable_bytes %d\n", memAvailable))
+			}
+			out.WriteString(fmt.Sprintf("# HELP node_memory_Buffers_bytes Buffer cache\n# TYPE node_memory_Buffers_bytes gauge\nnode_memory_Buffers_bytes %d\n", memBuffers))
+			out.WriteString(fmt.Sprintf("# HELP node_memory_Cached_bytes Cached memory\n# TYPE node_memory_Cached_bytes gauge\nnode_memory_Cached_bytes %d\n", memCached))
+		}
+
+		// Disk usage
+		dfBin := findBin("df", "/bin/df", "/usr/bin/df", "/sbin/df")
+		if output, err := exec.Command(dfBin, "-P").Output(); err == nil {
+			for i, line := range strings.Split(string(output), "\n") {
+				if i == 0 {
+					continue // skip header
+				}
+				fields := strings.Fields(line)
+				if len(fields) < 6 {
+					continue
+				}
+				device := fields[0]
+				mount := fields[5]
+				if device == "tmpfs" || strings.HasPrefix(device, "devtmpfs") {
+					continue
+				}
+				var size, used int64
+				fmt.Sscanf(fields[1], "%d", &size)
+				fmt.Sscanf(fields[2], "%d", &used)
+				usePct := strings.TrimSuffix(fields[4], "%")
+				out.WriteString(fmt.Sprintf("# HELP node_filesystem_size_bytes Filesystem size in bytes\n# TYPE node_filesystem_size_bytes gauge\nnode_filesystem_size_bytes{device=%q,mountpoint=%q} %d\n", device, mount, size*1024))
+				out.WriteString(fmt.Sprintf("# HELP node_filesystem_free_bytes Filesystem free in bytes\n# TYPE node_filesystem_free_bytes gauge\nnode_filesystem_free_bytes{device=%q,mountpoint=%q} %d\n", device, mount, (size-used)*1024))
+				out.WriteString(fmt.Sprintf("# HELP node_filesystem_avail_bytes Filesystem available in bytes\n# TYPE node_filesystem_avail_bytes gauge\nnode_filesystem_avail_bytes{device=%q,mountpoint=%q} %d\n", device, mount, (size-used)*1024))
+				out.WriteString(fmt.Sprintf("# HELP node_filesystem_used_percent Filesystem used percent\n# TYPE node_filesystem_used_percent gauge\nnode_filesystem_used_percent{device=%q,mountpoint=%q} %s\n", device, mount, usePct))
+			}
+		}
+
+		// Network stats
+		if data, err := os.ReadFile("/proc/net/dev"); err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				parts := strings.SplitN(strings.TrimSpace(line), ":", 2)
+				if len(parts) != 2 {
+					continue
+				}
+				iface := strings.TrimSpace(parts[0])
+				if iface == "lo" || iface == "" {
+					continue
+				}
+				fields := strings.Fields(parts[1])
+				if len(fields) < 9 {
+					continue
+				}
+				var rxBytes, rxPackets, txBytes, txPackets int64
+				fmt.Sscanf(fields[0], "%d", &rxBytes)
+				fmt.Sscanf(fields[1], "%d", &rxPackets)
+				fmt.Sscanf(fields[8], "%d", &txBytes)
+				fmt.Sscanf(fields[9], "%d", &txPackets)
+				out.WriteString(fmt.Sprintf("# HELP node_network_receive_bytes_total Network received bytes\n# TYPE node_network_receive_bytes_total counter\nnode_network_receive_bytes_total{device=%q} %d\n", iface, rxBytes))
+				out.WriteString(fmt.Sprintf("# HELP node_network_receive_packets_total Network received packets\n# TYPE node_network_receive_packets_total counter\nnode_network_receive_packets_total{device=%q} %d\n", iface, rxPackets))
+				out.WriteString(fmt.Sprintf("# HELP node_network_transmit_bytes_total Network transmitted bytes\n# TYPE node_network_transmit_bytes_total counter\nnode_network_transmit_bytes_total{device=%q} %d\n", iface, txBytes))
+				out.WriteString(fmt.Sprintf("# HELP node_network_transmit_packets_total Network transmitted packets\n# TYPE node_network_transmit_packets_total counter\nnode_network_transmit_packets_total{device=%q} %d\n", iface, txPackets))
+			}
+		}
+
+		// Uptime
+		if data, err := os.ReadFile("/proc/uptime"); err == nil {
+			fields := strings.Fields(string(data))
+			if len(fields) > 0 {
+				if up, err := strconv.ParseFloat(fields[0], 64); err == nil {
+					out.WriteString(fmt.Sprintf("# HELP node_boot_time_seconds System boot time\n# TYPE node_boot_time_seconds gauge\nnode_boot_time_seconds %d\n", now-int64(up)))
+				}
+			}
+		}
+
+		w.Write([]byte(out.String()))
+	})))
 
 	// ── Server with middleware ─────────────────────────
 	handler := requestLogger(logger)(mux)

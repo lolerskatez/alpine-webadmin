@@ -204,6 +204,10 @@ type ResolvWriteReq struct {
 	Content string `json:"content"`
 }
 
+type ClockSetReq struct {
+	DateTime string `json:"datetime"`
+}
+
 // ── OK Response Payloads ───────────────────────────
 
 type ServiceListData struct {
@@ -337,6 +341,7 @@ const (
 	TypeSshKeysWrite    = "cap.ssh.keys.write"
 	TypeResolvRead      = "cap.resolv.read"
 	TypeResolvWrite     = "cap.resolv.write"
+	TypeClockSet        = "cap.clock.set"
 	TypeResponseOK      = "response.ok"
 	TypeResponseError   = "response.error"
 )

@@ -208,6 +208,8 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleSshKeysRead(req)
 	case ipc.TypeSshKeysWrite:
 		resp = b.handleSshKeysWrite(req)
+	case ipc.TypeClockSet:
+		resp = b.handleClockSet(req)
 	default:
 		resp = b.error(req, ipc.ErrInvalidRequest, "unknown message type")
 	}
@@ -1392,6 +1394,31 @@ func (b *broker) handleSshKeysWrite(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrExecutionFailed, err.Error())
 	}
 	return b.ok(req, map[string]string{"status": "saved", "username": body.Username})
+}
+
+func (b *broker) handleClockSet(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/bin/date") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/bin/date not allowed")
+	}
+	var body ipc.ClockSetReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.DateTime == "" {
+		return b.error(req, ipc.ErrInvalidRequest, "datetime required")
+	}
+	// Validate format: YYYY-MM-DD HH:MM:SS
+	matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$`, body.DateTime)
+	if !matched {
+		return b.error(req, ipc.ErrInvalidRequest, "invalid datetime format, expected YYYY-MM-DD HH:MM:SS")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/bin/date", "-s", body.DateTime)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"status": "clock set", "datetime": body.DateTime})
 }
 
 // generateRandomPassword creates a 16-char alphanumeric temporary password.
