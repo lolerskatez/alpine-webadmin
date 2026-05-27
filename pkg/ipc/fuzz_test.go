@@ -99,15 +99,16 @@ func TestLargePayload(t *testing.T) {
 	rand.New(rand.NewSource(42)).Read(payload)
 
 	var buf bytes.Buffer
-	if err := WriteMessage(&buf, payload); err != nil {
+	env := Envelope{Version: Version, MessageType: "test", Payload: payload}
+	if err := WriteMessage(&buf, env); err != nil {
 		t.Fatalf("write large payload: %v", err)
 	}
 
-	readPayload, err := ReadMessage(&buf)
+	readEnv, err := ReadMessage(&buf)
 	if err != nil {
 		t.Fatalf("read large payload: %v", err)
 	}
-	if !bytes.Equal(readPayload, payload) {
+	if !bytes.Equal(readEnv.Payload, payload) {
 		t.Fatal("large payload mismatch")
 	}
 }
@@ -151,7 +152,8 @@ func TestConcurrentReadWrite(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < msgs; j++ {
 				payload := []byte(fmt.Sprintf("worker-%d-msg-%d", id, j))
-				if err := WriteMessage(&buf, payload); err != nil {
+				env := Envelope{Version: Version, MessageType: "test", Payload: payload}
+				if err := WriteMessage(&buf, env); err != nil {
 					t.Errorf("write: %v", err)
 					return
 				}
