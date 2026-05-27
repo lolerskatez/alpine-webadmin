@@ -52,7 +52,8 @@ func FuzzReadWrite(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, payload []byte) {
 		var buf bytes.Buffer
-		if err := WriteMessage(&buf, payload); err != nil {
+		env := Envelope{Version: Version, MessageType: "test", Payload: payload}
+		if err := WriteMessage(&buf, env); err != nil {
 			return
 		}
 		readPayload, err := ReadMessage(&buf)
@@ -62,8 +63,8 @@ func FuzzReadWrite(f *testing.F) {
 			}
 			t.Fatalf("read failed: %v", err)
 		}
-		if !bytes.Equal(readPayload, payload) {
-			t.Fatalf("payload mismatch: got %d bytes, want %d", len(readPayload), len(payload))
+		if !bytes.Equal(readPayload.Payload, payload) {
+			t.Fatalf("payload mismatch: got %d bytes, want %d", len(readPayload.Payload), len(payload))
 		}
 	})
 }

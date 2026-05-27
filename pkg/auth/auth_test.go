@@ -120,6 +120,7 @@ func TestStoreGetWithRenew(t *testing.T) {
 	if !ok {
 		t.Fatal("expected valid session")
 	}
+	_ = sess
 
 	// Wait 1.5 seconds (would expire if not renewed)
 	time.Sleep(1500 * time.Millisecond)
