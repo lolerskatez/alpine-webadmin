@@ -4,6 +4,7 @@
   "logs_socket": "/run/webadmin/logs.sock",
   "session_ttl": 3600,
   "ws_max_conns": 10,
+  "ws_max_frame_size": 65536,
   "rate_limit_rps": 20,
   "allowed_helpers": [
     "/sbin/rc-service",

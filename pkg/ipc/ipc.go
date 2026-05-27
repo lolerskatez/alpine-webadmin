@@ -103,6 +103,10 @@ type KModUnloadReq struct {
 	Module string `json:"module"`
 }
 
+type HostnameSetReq struct {
+	Hostname string `json:"hostname"`
+}
+
 // ── OK Response Payloads ───────────────────────────
 
 type ServiceListData struct {
@@ -206,6 +210,7 @@ const (
 	TypeUnmount        = "cap.fs.unmount"
 	TypeKModLoad       = "cap.kmod.load"
 	TypeKModUnload     = "cap.kmod.unload"
+	TypeHostnameSet    = "cap.system.hostname"
 	TypeResponseOK     = "response.ok"
 	TypeResponseError  = "response.error"
 )

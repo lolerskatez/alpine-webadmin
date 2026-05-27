@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -51,6 +53,7 @@ func main() {
 		logger.Error("failed to load config", map[string]interface{}{"error": err.Error()})
 		os.Exit(1)
 	}
+	ws.MaxFrameSize = uint64(cfg.WSMaxFrameSize)
 
 	// ── Subsystems ───────────────────────────────────
 	sessionStore := auth.NewStore(cfg.SessionTTL)
@@ -261,6 +264,20 @@ func main() {
 		}
 		forwardIPC(w, r, ipcClient, ipc.TypeSystemInfo, []byte("{}"))
 	})))
+
+	mux.Handle("/api/system/hostname", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body ipc.HostnameSetReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(body)
+		forwardIPC(w, r, ipcClient, ipc.TypeHostnameSet, payload)
+	}))))
 
 	mux.Handle("/api/packages", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -484,6 +501,34 @@ func main() {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))))
 
+	mux.Handle("/api/mount", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body ipc.MountReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(body)
+		forwardIPC(w, r, ipcClient, ipc.TypeMount, payload)
+	}))))
+
+	mux.Handle("/api/unmount", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body ipc.UnmountReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		payload, _ := json.Marshal(body)
+		forwardIPC(w, r, ipcClient, ipc.TypeUnmount, payload)
+	}))))
+
 	mux.Handle("/api/sessions", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -609,9 +654,76 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// TODO: implement real alert system; return placeholder for now
-		alerts := []map[string]interface{}{
-			{"level": "info", "message": "System operational", "timestamp": time.Now().Unix()},
+		var alerts []map[string]interface{}
+		now := time.Now().Unix()
+
+		// Load average
+		if data, err := os.ReadFile("/proc/loadavg"); err == nil {
+			parts := strings.Fields(string(data))
+			if len(parts) > 0 {
+				if load, err := strconv.ParseFloat(parts[0], 64); err == nil {
+					cores := float64(runtime.NumCPU())
+					if load > cores*2 {
+						alerts = append(alerts, map[string]interface{}{"level": "error", "message": fmt.Sprintf("High load average: %.2f (cores: %.0f)", load, cores), "timestamp": now})
+					} else if load > cores {
+						alerts = append(alerts, map[string]interface{}{"level": "warning", "message": fmt.Sprintf("Elevated load average: %.2f (cores: %.0f)", load, cores), "timestamp": now})
+					}
+				}
+			}
+		}
+
+		// Memory
+		if f, err := os.Open("/proc/meminfo"); err == nil {
+			var label string
+			var memTotal, memAvailable int64
+			scanner := bufio.NewScanner(f)
+			for scanner.Scan() {
+				if n, _ := fmt.Sscanf(scanner.Text(), "%s %d", &label, &memTotal); n == 2 && label == "MemTotal:" {
+					break
+				}
+			}
+			_ = f.Close()
+			if f2, err := os.Open("/proc/meminfo"); err == nil {
+				scanner2 := bufio.NewScanner(f2)
+				for scanner2.Scan() {
+					if n, _ := fmt.Sscanf(scanner2.Text(), "%s %d", &label, &memAvailable); n == 2 && label == "MemAvailable:" {
+						break
+					}
+				}
+				_ = f2.Close()
+			}
+			if memTotal > 0 {
+				used := memTotal - memAvailable
+				pct := float64(used) / float64(memTotal) * 100
+				if pct > 90 {
+					alerts = append(alerts, map[string]interface{}{"level": "error", "message": fmt.Sprintf("Critical memory usage: %.0f%%", pct), "timestamp": now})
+				} else if pct > 80 {
+					alerts = append(alerts, map[string]interface{}{"level": "warning", "message": fmt.Sprintf("High memory usage: %.0f%%", pct), "timestamp": now})
+				}
+			}
+		}
+
+		// Disk
+		dfBin := findBin("df", "/bin/df", "/usr/bin/df", "/sbin/df")
+		if out, err := exec.Command(dfBin, "-h").Output(); err == nil {
+			for _, line := range strings.Split(string(out), "\n")[1:] {
+				fields := strings.Fields(line)
+				if len(fields) < 6 {
+					continue
+				}
+				useStr := strings.TrimSuffix(fields[4], "%")
+				if pct, err := strconv.Atoi(useStr); err == nil {
+					if pct > 95 {
+						alerts = append(alerts, map[string]interface{}{"level": "error", "message": fmt.Sprintf("Critical disk usage on %s: %d%%", fields[5], pct), "timestamp": now})
+					} else if pct > 85 {
+						alerts = append(alerts, map[string]interface{}{"level": "warning", "message": fmt.Sprintf("High disk usage on %s: %d%%", fields[5], pct), "timestamp": now})
+					}
+				}
+			}
+		}
+
+		if len(alerts) == 0 {
+			alerts = append(alerts, map[string]interface{}{"level": "info", "message": "System operational", "timestamp": now})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(alerts)
@@ -622,6 +734,16 @@ func main() {
 		if !ws.IsWebSocketUpgrade(r) {
 			http.Error(w, "Not a websocket upgrade", http.StatusBadRequest)
 			return
+		}
+
+		// Origin validation
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			u, err := url.Parse(origin)
+			if err != nil || u.Host != r.Host {
+				http.Error(w, "Invalid origin", http.StatusForbidden)
+				return
+			}
 		}
 
 		// Connection cap

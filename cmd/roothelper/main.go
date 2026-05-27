@@ -150,6 +150,8 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handleKModLoad(req)
 	case ipc.TypeKModUnload:
 		resp = b.handleKModUnload(req)
+	case ipc.TypeHostnameSet:
+		resp = b.handleHostnameSet(req)
 	default:
 		resp = b.error(req, ipc.ErrInvalidRequest, "unknown message type")
 	}
@@ -413,6 +415,28 @@ func (b *broker) handleSystemInfo(req ipc.Envelope) ipc.Envelope {
 		TotalMemKB: totalMem,
 		CpuCount:   runtime.NumCPU(),
 	})
+}
+
+func (b *broker) handleHostnameSet(req ipc.Envelope) ipc.Envelope {
+	var body ipc.HostnameSetReq
+	if err := json.Unmarshal(req.Payload, &body); err != nil {
+		return b.error(req, ipc.ErrInvalidRequest, err.Error())
+	}
+	if body.Hostname == "" || strings.Contains(body.Hostname, "..") || strings.Contains(body.Hostname, "/") {
+		return b.error(req, ipc.ErrInvalidRequest, "invalid hostname")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// Set transient hostname
+	out, err := b.run(ctx, "/bin/hostname", body.Hostname)
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	// Persist to /etc/hostname
+	if err := os.WriteFile("/etc/hostname", []byte(body.Hostname+"\n"), 0644); err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, err.Error())
+	}
+	return b.ok(req, map[string]string{"hostname": body.Hostname, "status": "set"})
 }
 
 func (b *broker) handlePackageList(req ipc.Envelope) ipc.Envelope {

@@ -28,6 +28,9 @@ type Frame struct {
 	Payload []byte
 }
 
+// MaxFrameSize is the maximum allowed payload length for a single WebSocket frame.
+var MaxFrameSize uint64 = 65536
+
 // ReadFrame reads a single WebSocket frame from r.
 func ReadFrame(r io.Reader) (Frame, error) {
 	var h [2]byte
@@ -54,7 +57,7 @@ func ReadFrame(r io.Reader) (Frame, error) {
 		length = binary.BigEndian.Uint64(ext[:])
 	}
 
-	if length > 65536 {
+	if length > MaxFrameSize {
 		return Frame{}, fmt.Errorf("ws: frame too large: %d", length)
 	}
 

@@ -577,6 +577,29 @@
 
                         <div class="toolbar">
                             <button @click="loadStorage()" class="btn" aria-label="Refresh storage">Refresh</button>
+                            <button @click="showMountForm = true" class="btn btn-secondary" aria-label="Mount device">Mount</button>
+                        </div>
+
+                        <div x-show="showMountForm" class="panel">
+                            <div class="panel-header"><h3>Mount Device</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row">
+                                    <label for="mount-device">Device</label>
+                                    <input id="mount-device" type="text" x-model="mountForm.device" placeholder="/dev/sdb1">
+                                </div>
+                                <div class="form-row">
+                                    <label for="mount-point">Mountpoint</label>
+                                    <input id="mount-point" type="text" x-model="mountForm.mountpoint" placeholder="/mnt/data">
+                                </div>
+                                <div class="form-row">
+                                    <label for="mount-fstype">Filesystem type (optional)</label>
+                                    <input id="mount-fstype" type="text" x-model="mountForm.fstype" placeholder="ext4">
+                                </div>
+                                <div class="btn-group">
+                                    <button @click="mountDevice()" class="btn">Mount</button>
+                                    <button @click="showMountForm = false" class="btn btn-secondary">Cancel</button>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="panel">
@@ -591,6 +614,7 @@
                                             <th role="columnheader">Available</th>
                                             <th role="columnheader">Use%</th>
                                             <th role="columnheader">Mounted on</th>
+                                            <th role="columnheader" class="actions-col">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -606,6 +630,9 @@
                                                           x-text="fs.usePercent + '%'"></span>
                                                 </td>
                                                 <td role="cell" x-text="fs.mountpoint"></td>
+                                                <td role="cell">
+                                                    <button @click="unmountDevice(fs.mountpoint)" class="btn btn-sm btn-danger" aria-label="Unmount filesystem">Unmount</button>
+                                                </td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -798,7 +825,15 @@
                                 <div class="info-grid">
                                     <div class="info-row">
                                         <span class="info-label">Hostname</span>
-                                        <span class="info-value" x-text="sysInfo.hostname || telemetry.hostname || '-'"></span>
+                                        <span class="info-value" x-show="!showHostnameEdit" x-text="sysInfo.hostname || telemetry.hostname || '-'"></span>
+                                        <template x-if="showHostnameEdit">
+                                            <div class="inline-form">
+                                                <input type="text" x-model="newHostname" @keydown.enter="setHostname()" aria-label="New hostname">
+                                                <button @click="setHostname()" class="btn btn-sm">Save</button>
+                                                <button @click="showHostnameEdit = false" class="btn btn-sm btn-secondary">Cancel</button>
+                                            </div>
+                                        </template>
+                                        <button x-show="!showHostnameEdit" @click="showHostnameEdit = true" class="btn btn-sm btn-secondary" aria-label="Edit hostname">Edit</button>
                                     </div>
                                     <div class="info-row">
                                         <span class="info-label">OS</span>

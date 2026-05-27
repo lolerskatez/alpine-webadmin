@@ -10,12 +10,13 @@ import (
 
 // Defaults
 const (
-	DefaultListen       = ":8080"
-	DefaultIPCSocket    = "/run/webadmin/ipc.sock"
-	DefaultLogsSocket   = "/run/webadmin/logs.sock"
-	DefaultSessionTTL   = 3600
-	DefaultWSMaxConns   = 10
-	DefaultRateLimitRPS = 20
+	DefaultListen        = ":8080"
+	DefaultIPCSocket     = "/run/webadmin/ipc.sock"
+	DefaultLogsSocket    = "/run/webadmin/logs.sock"
+	DefaultSessionTTL    = 3600
+	DefaultWSMaxConns    = 10
+	DefaultWSMaxFrameSize = 65536
+	DefaultRateLimitRPS  = 20
 )
 
 // Config holds runtime configuration loaded from /etc/webadmin/config.json.
@@ -27,6 +28,7 @@ type Config struct {
 	LogsSocket     string   `json:"logs_socket"`
 	SessionTTL     int      `json:"session_ttl"`
 	WSMaxConns     int      `json:"ws_max_conns"`
+	WSMaxFrameSize int      `json:"ws_max_frame_size"`
 	RateLimitRPS   int      `json:"rate_limit_rps"`
 	AllowedHelpers []string `json:"allowed_helpers"`
 }
@@ -69,6 +71,9 @@ func (c *Config) applyDefaults() error {
 	if c.WSMaxConns == 0 {
 		c.WSMaxConns = DefaultWSMaxConns
 	}
+	if c.WSMaxFrameSize == 0 {
+		c.WSMaxFrameSize = DefaultWSMaxFrameSize
+	}
 	if c.RateLimitRPS == 0 {
 		c.RateLimitRPS = DefaultRateLimitRPS
 	}
@@ -81,6 +86,9 @@ func (c *Config) validate() error {
 	}
 	if c.WSMaxConns < 1 || c.WSMaxConns > 100 {
 		return fmt.Errorf("config: ws_max_conns must be between 1 and 100")
+	}
+	if c.WSMaxFrameSize < 1024 || c.WSMaxFrameSize > 8*1024*1024 {
+		return fmt.Errorf("config: ws_max_frame_size must be between 1024 and 8388608")
 	}
 	if c.RateLimitRPS < 1 || c.RateLimitRPS > 1000 {
 		return fmt.Errorf("config: rate_limit_rps must be between 1 and 1000")

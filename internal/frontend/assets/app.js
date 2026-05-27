@@ -49,6 +49,8 @@ function app() {
 
         // ── Storage ───────────────────────────────────────
         storageData: [],
+        showMountForm: false,
+        mountForm: { device: '', mountpoint: '', fstype: '' },
 
         // ── Users ─────────────────────────────────────────
         users: [],
@@ -70,6 +72,8 @@ function app() {
         confirmReboot: false,
         confirmShutdown: false,
         sysInfo: {},
+        newHostname: '',
+        showHostnameEdit: false,
 
         // ── Alerts ────────────────────────────────────────
         alerts: [],
@@ -473,6 +477,50 @@ function app() {
             }).filter(Boolean);
         },
 
+        async mountDevice() {
+            const { device, mountpoint, fstype } = this.mountForm;
+            if (!device.trim() || !mountpoint.trim()) {
+                this.showAlert('Device and mountpoint are required', 'error');
+                return;
+            }
+            try {
+                const r = await fetch('/api/mount', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device: device.trim(), mountpoint: mountpoint.trim(), fstype: fstype.trim() || undefined })
+                });
+                if (r.ok) {
+                    this.showAlert('Device mounted', 'success');
+                    this.showMountForm = false;
+                    this.mountForm = { device: '', mountpoint: '', fstype: '' };
+                    this.loadStorage();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Mount failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Mount failed', 'error'); }
+        },
+
+        async unmountDevice(mountpoint) {
+            if (!confirm(`Unmount ${mountpoint}?`)) return;
+            try {
+                const r = await fetch('/api/unmount', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mountpoint })
+                });
+                if (r.ok) {
+                    this.showAlert('Device unmounted', 'success');
+                    this.loadStorage();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Unmount failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Unmount failed', 'error'); }
+        },
+
         // ── Users ─────────────────────────────────────────
         async loadUsers() {
             try {
@@ -608,7 +656,28 @@ function app() {
                 const r = await fetch('/api/system', { credentials: 'same-origin' });
                 if (!r.ok) { this.showAlert('Failed to load system info', 'error'); return; }
                 this.sysInfo = await r.json();
+                this.newHostname = this.sysInfo.hostname || this.telemetry.hostname || '';
             } catch (e) { this.showAlert('Failed to load system info', 'error'); }
+        },
+
+        async setHostname() {
+            if (!this.newHostname.trim()) return;
+            try {
+                const r = await fetch('/api/system/hostname', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hostname: this.newHostname.trim() })
+                });
+                if (r.ok) {
+                    this.showAlert('Hostname updated', 'success');
+                    this.showHostnameEdit = false;
+                    this.loadSystemInfo();
+                } else {
+                    const err = await r.text();
+                    this.showAlert('Hostname update failed: ' + err, 'error');
+                }
+            } catch (e) { this.showAlert('Hostname update failed', 'error'); }
         },
 
         async powerAction(action) {

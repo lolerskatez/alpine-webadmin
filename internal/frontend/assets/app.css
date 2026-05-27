@@ -680,6 +680,11 @@ input:focus { border-color: var(--accent); outline: none; }
     .modal { width: 100%; margin: 0.5rem; }
 }
 
+/* ── Forms ─────────────────────────────────────────────── */
+.form-row { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; }
+.form-row label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.inline-form { display: flex; gap: 0.5rem; align-items: center; }
+
 @media (max-width: 480px) {
     .metrics-grid { grid-template-columns: 1fr; }
     .data-table th, .data-table td { padding: 0.35rem 0.45rem; font-size: 12px; }
