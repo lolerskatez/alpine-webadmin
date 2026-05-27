@@ -1158,6 +1158,114 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
 	})))
 
+	// WiFi scan (read-only)
+	mux.Handle("/api/network/wifi", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		iwBin := findBin("iw", "/usr/sbin/iw", "/sbin/iw")
+		var output []byte
+		var err error
+		if _, statErr := os.Stat(iwBin); statErr == nil {
+			output, err = exec.Command(iwBin, "dev", "scan").Output()
+		}
+		if err != nil || len(output) == 0 {
+			iwlistBin := findBin("iwlist", "/usr/sbin/iwlist", "/sbin/iwlist")
+			if _, statErr := os.Stat(iwlistBin); statErr == nil {
+				output, err = exec.Command(iwlistBin, "scan").Output()
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			json.NewEncoder(w).Encode(map[string]string{"content": "", "error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"content": string(output)})
+	})))
+
+	// Generic file viewer (read-only, whitelist)
+	mux.Handle("/api/files", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		path := r.URL.Query().Get("path")
+		if path == "" {
+			http.Error(w, "path required", http.StatusBadRequest)
+			return
+		}
+		// Normalize and whitelist
+		path = filepath.Clean(path)
+		allowed := false
+		for _, prefix := range []string{"/etc/", "/var/log/", "/proc/", "/sys/"} {
+			if strings.HasPrefix(path, prefix) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			http.Error(w, "path not allowed", http.StatusForbidden)
+			return
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			http.Error(w, "not available", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": string(data)})
+	})))
+
+	// Historical log search (grep-like)
+	mux.Handle("/api/logs/search", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		query := r.URL.Query().Get("query")
+		if query == "" {
+			http.Error(w, "query required", http.StatusBadRequest)
+			return
+		}
+		limitStr := r.URL.Query().Get("limit")
+		limit := 100
+		if limitStr != "" {
+			if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 1000 {
+				limit = n
+			}
+		}
+		logPath := "/var/log/messages"
+		if p := r.URL.Query().Get("file"); p != "" {
+			clean := filepath.Clean(p)
+			if strings.HasPrefix(clean, "/var/log/") || strings.HasPrefix(clean, "/etc/") {
+				logPath = clean
+			}
+		}
+		var lines []string
+		if data, err := os.ReadFile(logPath); err == nil {
+			all := strings.Split(string(data), "\n")
+			queryLower := strings.ToLower(query)
+			for i := len(all) - 1; i >= 0 && len(lines) < limit; i-- {
+				line := all[i]
+				if strings.Contains(strings.ToLower(line), queryLower) {
+					lines = append([]string{line}, lines...)
+				}
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"lines": lines, "count": len(lines)})
+	})))
+
+	// Package cache clean
+	mux.Handle("/api/packages/cache-clean", csrf(authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		forwardIPC(w, r, ipcClient, ipc.TypePackageCacheClean, []byte("{}"))
+	}))))
+
 	mux.Handle("/api/logs", authenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1658,6 +1766,28 @@ func main() {
 		defer cancel()
 		server.Shutdown(ctx)
 	}()
+
+	// HTTP -> HTTPS redirect when TLS is configured
+	if cfg.TLSCert != "" {
+		go func() {
+			redirect := &http.Server{
+				Addr: ":80",
+				Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					target := "https://" + r.Host + r.URL.RequestURI()
+					if r.Host == "" {
+						target = "https://" + cfg.Listen + r.URL.RequestURI()
+					}
+					http.Redirect(w, r, target, http.StatusMovedPermanently)
+				}),
+				ReadTimeout:  5 * time.Second,
+				WriteTimeout: 5 * time.Second,
+			}
+			logger.Info("http redirect listening", map[string]interface{}{"addr": ":80"})
+			if err := redirect.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Warn("http redirect server error", map[string]interface{}{"error": err.Error()})
+			}
+		}()
+	}
 
 	logger.Info("webadmin listening", map[string]interface{}{"addr": cfg.Listen})
 	if cfg.TLSCert != "" {

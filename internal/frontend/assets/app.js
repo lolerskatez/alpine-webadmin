@@ -169,6 +169,18 @@ function app() {
         // ── Clock ─────────────────────────────────────────
         clockDatetime: '',
 
+        // ── File Viewer ───────────────────────────────────
+        fileViewerPath: '',
+        fileViewerContent: '',
+
+        // ── Log Search ────────────────────────────────────
+        logSearchQuery: '',
+        logSearchResults: [],
+        logSearchCount: 0,
+
+        // ── WiFi ────────────────────────────────────────────
+        wifiScanContent: '',
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -281,7 +293,7 @@ function app() {
                 case 'dashboard': this.loadSystemAlerts(); break;
                 case 'services': this.loadServices(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
-                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); break;
+                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); break;
                 case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
@@ -1478,6 +1490,53 @@ function app() {
                 if (r.ok) { this.showAlert('System clock updated', 'success'); }
                 else { const err = await r.text(); this.showAlert('Clock update failed: ' + err, 'error'); }
             } catch (e) { this.showAlert('Clock update failed', 'error'); }
+        },
+
+        // ── WiFi Scan ─────────────────────────────────────
+        async loadWifiScan() {
+            try {
+                const r = await fetch('/api/network/wifi', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.wifiScanContent = data.content || '';
+            } catch (e) { /* silent */ }
+        },
+
+        // ── File Viewer ───────────────────────────────────
+        async loadFileViewer() {
+            if (!this.fileViewerPath) return;
+            try {
+                const r = await fetch(`/api/files?path=${encodeURIComponent(this.fileViewerPath)}`, { credentials: 'same-origin' });
+                if (!r.ok) { this.fileViewerContent = ''; return; }
+                const data = await r.json();
+                this.fileViewerContent = data.content || '';
+            } catch (e) { this.fileViewerContent = ''; }
+        },
+
+        // ── Log Search ────────────────────────────────────
+        async searchLogs() {
+            if (!this.logSearchQuery) return;
+            try {
+                const r = await fetch(`/api/logs/search?query=${encodeURIComponent(this.logSearchQuery)}&limit=100`, { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.logSearchResults = data.lines || [];
+                this.logSearchCount = data.count || 0;
+            } catch (e) { this.logSearchResults = []; this.logSearchCount = 0; }
+        },
+
+        // ── Package Cache Clean ───────────────────────────
+        async cleanPackageCache() {
+            try {
+                const r = await fetch('/api/packages/cache-clean', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': this.csrfToken, 'Content-Type': 'application/json' },
+                    body: '{}'
+                });
+                if (r.ok) { this.showAlert('Package cache cleaned', 'success'); }
+                else { const err = await r.text(); this.showAlert('Cache clean failed: ' + err, 'error'); }
+            } catch (e) { this.showAlert('Cache clean failed', 'error'); }
         },
 
         // ── Config Export/Import ──────────────────────────

@@ -341,7 +341,8 @@ const (
 	TypeSshKeysWrite    = "cap.ssh.keys.write"
 	TypeResolvRead      = "cap.resolv.read"
 	TypeResolvWrite     = "cap.resolv.write"
-	TypeClockSet        = "cap.clock.set"
-	TypeResponseOK      = "response.ok"
-	TypeResponseError   = "response.error"
+	TypeClockSet         = "cap.clock.set"
+	TypePackageCacheClean = "cap.package.cache.clean"
+	TypeResponseOK       = "response.ok"
+	TypeResponseError    = "response.error"
 )

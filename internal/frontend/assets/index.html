@@ -523,6 +523,7 @@
                             <div class="toolbar-group">
                                 <button @click="packageAction('update')" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Update index">Update Index</button>
                                 <button @click="packageAction('upgrade')" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Upgrade all">Upgrade All</button>
+                                <button @click="cleanPackageCache()" class="btn btn-secondary" :disabled="pkgOpLoading" aria-label="Clean package cache">Cache Clean</button>
                                 <button @click="showApkRepoEdit = true" class="btn btn-secondary" aria-label="Edit repositories">Repositories</button>
                             </div>
                         </div>
@@ -708,6 +709,13 @@
                             <div class="panel-header"><h3>Firewall</h3></div>
                             <div class="panel-body">
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="firewallContent || 'No firewall data available.'"></pre>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>WiFi Scan</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="wifiScanContent || 'No WiFi scan data available.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -1169,6 +1177,30 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Search Logs</h3></div>
+                            <div class="panel-body">
+                                <div class="toolbar">
+                                    <div class="toolbar-group">
+                                        <input type="search"
+                                               x-model="logSearchQuery"
+                                               placeholder="Search /var/log/messages..."
+                                               class="search-input"
+                                               @keydown.enter="searchLogs()"
+                                               aria-label="Search log files">
+                                        <button @click="searchLogs()" class="btn">Search</button>
+                                    </div>
+                                </div>
+                                <div class="log-container" role="log" aria-live="off" aria-label="Log search results">
+                                    <template x-for="line in logSearchResults" :key="line">
+                                        <div class="log-line" x-text="line"></div>
+                                    </template>
+                                    <div x-show="logSearchResults.length === 0" class="empty-state">No results. Enter a query and click Search.</div>
+                                </div>
+                                <div x-show="logSearchCount > 0" class="toolbar-meta" x-text="logSearchCount + ' results'"></div>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ SESSIONS ============ -->
@@ -1480,6 +1512,17 @@
                                         <button @click="showResolvEdit = false" class="btn btn-secondary">Cancel</button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>File Viewer</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row" style="display:flex;gap:0.5rem;">
+                                    <input type="text" x-model="fileViewerPath" placeholder="/etc/hosts" style="flex:1;" aria-label="File path">
+                                    <button @click="loadFileViewer()" class="btn">View</button>
+                                </div>
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;margin-top:0.5rem;" x-text="fileViewerContent || 'Enter a path and click View.'"></pre>
                             </div>
                         </div>
 

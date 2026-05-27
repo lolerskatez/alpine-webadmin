@@ -136,6 +136,8 @@ func (b *broker) handle(req ipc.Envelope) ipc.Envelope {
 		resp = b.handlePackageUpgrade(req)
 	case ipc.TypePackageOpQuery:
 		resp = b.handlePackageOpQuery(req)
+	case ipc.TypePackageCacheClean:
+		resp = b.handlePackageCacheClean(req)
 	case ipc.TypeReboot:
 		resp = b.handleReboot(req)
 	case ipc.TypeShutdown:
@@ -614,6 +616,19 @@ func (b *broker) handlePackageOpQuery(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrServiceNotFound, "operation not found")
 	}
 	return b.ok(req, b.opToIPC(op))
+}
+
+func (b *broker) handlePackageCacheClean(req ipc.Envelope) ipc.Envelope {
+	if !b.checkAllow("/sbin/apk") {
+		return b.error(req, ipc.ErrCapabilityDenied, "/sbin/apk not allowed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	out, err := b.run(ctx, "/sbin/apk", "cache", "clean")
+	if err != nil {
+		return b.error(req, ipc.ErrExecutionFailed, string(out))
+	}
+	return b.ok(req, map[string]string{"status": "cache cleaned"})
 }
 
 func (b *broker) toIPCPackages(pkgs []apk.PackageInfo) []ipc.PackageInfo {
