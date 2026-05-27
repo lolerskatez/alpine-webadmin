@@ -181,6 +181,22 @@ function app() {
         // ── WiFi ────────────────────────────────────────────
         wifiScanContent: '',
 
+        // ── CPU Info ──────────────────────────────────────
+        cpuInfo: {},
+
+        // ── Memory Info ─────────────────────────────────
+        memInfo: {},
+
+        // ── dmesg ─────────────────────────────────────────
+        dmesgContent: '',
+
+        // ── Network Addresses ───────────────────────────
+        netAddrContent: '',
+
+        // ── SMART ─────────────────────────────────────────
+        smartDev: '/dev/sda',
+        smartContent: '',
+
         // ── Alerts ────────────────────────────────────────
         alerts: [],
         alertIdCounter: 0,
@@ -293,12 +309,12 @@ function app() {
                 case 'dashboard': this.loadSystemAlerts(); break;
                 case 'services': this.loadServices(); break;
                 case 'packages': this.searchPackages(); this.loadApkRepos(); break;
-                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); break;
-                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); break;
+                case 'network': this.loadNetwork(); this.loadNetworkInterfaces(); this.loadFirewall(); this.loadRoutes(); this.loadWifiScan(); this.loadNetAddr(); break;
+                case 'storage': this.loadStorage(); this.loadFstab(); this.loadBlockDevices(); this.loadSmart(); break;
                 case 'users': this.loadUsers(); break;
                 case 'logs': this.loadLogHistory(); break;
                 case 'sessions': this.loadSessions(); break;
-                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); break;
+                case 'system': this.loadSystemInfo(); this.loadSshConfig(); this.loadTimezone(); this.loadNtp(); this.loadLbu(); this.loadCpuInfo(); this.loadMemInfo(); this.loadDmesg(); break;
                 case 'modules': this.loadKMod(); break;
                 case 'cron': this.loadCron(); break;
                 case 'processes': this.loadProcesses(); break;
@@ -1500,6 +1516,54 @@ function app() {
                 const data = await r.json();
                 this.wifiScanContent = data.content || '';
             } catch (e) { /* silent */ }
+        },
+
+        // ── CPU Info ──────────────────────────────────────
+        async loadCpuInfo() {
+            try {
+                const r = await fetch('/api/system/cpuinfo', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.cpuInfo = await r.json();
+            } catch (e) { this.cpuInfo = {}; }
+        },
+
+        // ── Memory Info ─────────────────────────────────
+        async loadMemInfo() {
+            try {
+                const r = await fetch('/api/system/meminfo', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                this.memInfo = await r.json();
+            } catch (e) { this.memInfo = {}; }
+        },
+
+        // ── dmesg ─────────────────────────────────────────
+        async loadDmesg() {
+            try {
+                const r = await fetch('/api/system/dmesg', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.dmesgContent = data.content || '';
+            } catch (e) { this.dmesgContent = ''; }
+        },
+
+        // ── Network Addresses ───────────────────────────
+        async loadNetAddr() {
+            try {
+                const r = await fetch('/api/network/addr', { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.netAddrContent = data.content || '';
+            } catch (e) { this.netAddrContent = ''; }
+        },
+
+        // ── SMART ─────────────────────────────────────────
+        async loadSmart() {
+            try {
+                const r = await fetch(`/api/storage/smart?dev=${encodeURIComponent(this.smartDev)}`, { credentials: 'same-origin' });
+                if (!r.ok) return;
+                const data = await r.json();
+                this.smartContent = data.content || '';
+            } catch (e) { this.smartContent = ''; }
         },
 
         // ── File Viewer ───────────────────────────────────

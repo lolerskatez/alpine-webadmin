@@ -718,6 +718,13 @@
                                 <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="wifiScanContent || 'No WiFi scan data available.'"></pre>
                             </div>
                         </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Interface Addresses</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="netAddrContent || 'No address data available.'"></pre>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- ============ STORAGE ============ -->
@@ -843,6 +850,17 @@
                                     </tbody>
                                 </table>
                                 <div x-show="blockDevices.length === 0" class="empty-state">No block device data available.</div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Disk Health (SMART)</h3></div>
+                            <div class="panel-body">
+                                <div class="form-row" style="display:flex;gap:0.5rem;">
+                                    <input type="text" x-model="smartDev" placeholder="/dev/sda" style="flex:1;" aria-label="SMART device">
+                                    <button @click="loadSmart()" class="btn">Check</button>
+                                </div>
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;margin-top:0.5rem;" x-text="smartContent || 'Select a device and click Check.'"></pre>
                             </div>
                         </div>
                     </section>
@@ -1512,6 +1530,47 @@
                                         <button @click="showResolvEdit = false" class="btn btn-secondary">Cancel</button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>CPU Info</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="CPU information">
+                                    <tbody>
+                                        <template x-for="(value, key) in cpuInfo" :key="key">
+                                            <tr role="row">
+                                                <td role="cell" style="font-weight:600;width:30%;" x-text="key"></td>
+                                                <td role="cell" x-text="value"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="Object.keys(cpuInfo).length === 0" class="empty-state">No CPU data available.</div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Memory Info</h3></div>
+                            <div class="panel-body">
+                                <table class="data-table" role="table" aria-label="Memory information">
+                                    <tbody>
+                                        <template x-for="(value, key) in memInfo" :key="key">
+                                            <tr role="row">
+                                                <td role="cell" style="font-weight:600;width:30%;" x-text="key"></td>
+                                                <td role="cell" x-text="value"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                                <div x-show="Object.keys(memInfo).length === 0" class="empty-state">No memory data available.</div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header"><h3>Boot Log (dmesg)</h3></div>
+                            <div class="panel-body">
+                                <pre style="background:var(--bg-input);padding:0.5rem;border-radius:var(--radius-sm);font-size:12px;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;" x-text="dmesgContent || 'No boot log available.'"></pre>
                             </div>
                         </div>
 
