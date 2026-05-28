@@ -163,26 +163,33 @@ func main() {
 				Payload:     payload,
 			})
 			cancel()
-			if err == nil && resp.MessageType == ipc.TypeResponseOK {
+			if err != nil {
+				logger.Warn("login verify IPC error", map[string]interface{}{"ip": ip, "user": req.Username, "err": err.Error()})
+			} else if resp.MessageType != ipc.TypeResponseOK {
+				logger.Warn("login verify IPC unexpected response", map[string]interface{}{"ip": ip, "user": req.Username, "msgType": resp.MessageType})
+			} else {
 				var verifyResp ipc.LoginVerifyResp
-				if unmarshalErr := json.Unmarshal(resp.Payload, &verifyResp); unmarshalErr == nil && verifyResp.Valid {
-					if verifyResp.Role == "admin" {
-						failedTracker.RecordSuccess(ip)
-						sid, err := sessionStore.CreateWithMetadata(req.Username, auth.RoleAdmin, ip, r.UserAgent())
-						if err != nil {
-							http.Error(w, "Internal error", http.StatusInternalServerError)
-							return
-						}
-						auth.SetSessionCookie(w, sid, cfg.SessionTTL)
-						csrfToken, _ := security.GenerateCSRFToken()
-						security.SetCSRFCookie(w, csrfToken)
-						logger.Info("login success", map[string]interface{}{"ip": ip, "user": req.Username})
-						w.WriteHeader(http.StatusNoContent)
+				if unmarshalErr := json.Unmarshal(resp.Payload, &verifyResp); unmarshalErr != nil {
+					logger.Warn("login verify IPC unmarshal error", map[string]interface{}{"ip": ip, "user": req.Username, "err": unmarshalErr.Error()})
+				} else if !verifyResp.Valid {
+					logger.Warn("login verify IPC invalid credentials", map[string]interface{}{"ip": ip, "user": req.Username})
+				} else if verifyResp.Role == "admin" {
+					failedTracker.RecordSuccess(ip)
+					sid, err := sessionStore.CreateWithMetadata(req.Username, auth.RoleAdmin, ip, r.UserAgent())
+					if err != nil {
+						http.Error(w, "Internal error", http.StatusInternalServerError)
 						return
 					}
+					auth.SetSessionCookie(w, sid, cfg.SessionTTL)
+					csrfToken, _ := security.GenerateCSRFToken()
+					security.SetCSRFCookie(w, csrfToken)
+					logger.Info("login success", map[string]interface{}{"ip": ip, "user": req.Username})
+					w.WriteHeader(http.StatusNoContent)
+					return
+				} else {
 					// Valid system user but not in admin group
 					failedTracker.RecordFailure(ip)
-					logger.Warn("login failed: not in admin group", map[string]interface{}{"ip": ip, "user": req.Username})
+					logger.Warn("login failed: not in admin group", map[string]interface{}{"ip": ip, "user": req.Username, "groups": verifyResp.Groups})
 					http.Error(w, "Unauthorized", http.StatusUnauthorized)
 					return
 				}

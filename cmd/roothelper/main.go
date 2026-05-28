@@ -778,13 +778,29 @@ func (b *broker) handleLoginVerify(req ipc.Envelope) ipc.Envelope {
 		return b.error(req, ipc.ErrInvalidRequest, "username required")
 	}
 
-	// Read shadow entry for the user
+	// Read shadow entry for the user — try getent first, then fall back to /etc/shadow directly
 	out, err := exec.Command("/usr/bin/getent", "shadow", body.Username).Output()
 	if err != nil {
 		out, err = exec.Command("/bin/getent", "shadow", body.Username).Output()
 	}
 	if err != nil {
-		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+		// getent may be missing on minimal Alpine installs — read /etc/shadow directly
+		out, err = os.ReadFile("/etc/shadow")
+		if err != nil {
+			return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+		}
+		lines := strings.Split(string(out), "\n")
+		found := ""
+		for _, line := range lines {
+			if strings.HasPrefix(line, body.Username+":") {
+				found = line
+				break
+			}
+		}
+		if found == "" {
+			return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+		}
+		out = []byte(found)
 	}
 	line := strings.TrimSpace(string(out))
 	parts := strings.Split(line, ":")
@@ -799,6 +815,9 @@ func (b *broker) handleLoginVerify(req ipc.Envelope) ipc.Envelope {
 
 	// Verify password using Unix crypt
 	c := crypt.NewFromHash(hash)
+	if c == nil {
+		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
+	}
 	if err := c.Verify(hash, []byte(body.Password)); err != nil {
 		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
 	}
