@@ -814,7 +814,16 @@ func (b *broker) handleLoginVerify(req ipc.Envelope) ipc.Envelope {
 	}
 
 	// Verify password using Unix crypt
-	c := crypt.NewFromHash(hash)
+	// Safely handle crypt.NewFromHash which may panic on unsupported hash formats
+	var c crypt.Crypter
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				c = nil
+			}
+		}()
+		c = crypt.NewFromHash(hash)
+	}()
 	if c == nil {
 		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
 	}
