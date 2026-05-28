@@ -777,7 +777,7 @@ func (b *broker) handleLoginVerify(req ipc.Envelope) ipc.Envelope {
 	if body.Username == "" {
 		return b.error(req, ipc.ErrInvalidRequest, "username required")
 	}
-	b.log.Debug("login verify request", map[string]interface{}{"user": body.Username})
+	b.logger.Debug("login verify request", map[string]interface{}{"user": body.Username})
 
 	// Read shadow entry for the user — try getent first, then fall back to /etc/shadow directly
 	out, err := exec.Command("/usr/bin/getent", "shadow", body.Username).Output()
@@ -826,11 +826,11 @@ func (b *broker) handleLoginVerify(req ipc.Envelope) ipc.Envelope {
 		c = crypt.NewFromHash(hash)
 	}()
 	if c == nil {
-		b.log.Debug("login verify failed: unsupported hash format", map[string]interface{}{"user": body.Username})
+		b.logger.Debug("login verify failed: unsupported hash format", map[string]interface{}{"user": body.Username})
 		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
 	}
 	if err := c.Verify(hash, []byte(body.Password)); err != nil {
-		b.log.Debug("login verify failed: password mismatch", map[string]interface{}{"user": body.Username, "err": err.Error()})
+		b.logger.Debug("login verify failed: password mismatch", map[string]interface{}{"user": body.Username, "err": err.Error()})
 		return b.ok(req, ipc.LoginVerifyResp{Valid: false})
 	}
 
@@ -853,7 +853,7 @@ func (b *broker) handleLoginVerify(req ipc.Envelope) ipc.Envelope {
 		}
 	}
 
-	b.log.Debug("login verify success", map[string]interface{}{"user": body.Username, "role": role, "groups": groups})
+	b.logger.Debug("login verify success", map[string]interface{}{"user": body.Username, "role": role, "groups": groups})
 	return b.ok(req, ipc.LoginVerifyResp{Valid: true, Role: role, Groups: groups})
 }
 
