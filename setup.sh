@@ -986,3 +986,12 @@ main() {
             
             log_info ""
             log_success "Upgrade complete!"
+            ;;
+        
+        *)
+            log_error "Unknown command: $COMMAND"
+            print_usage
+            exit 1
+            ;;
+    esac
+}
