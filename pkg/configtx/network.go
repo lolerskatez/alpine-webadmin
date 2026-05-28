@@ -42,8 +42,8 @@ func (ns *NetworkSafety) StageCommit(target *TargetConfig, stagedPath, backupPat
 	ns.mu.Unlock()
 
 	ns.logger.Info("network commit-confirm", map[string]interface{}{
-		"target":  target.Name,
-		"window":  ns.confirmTime.Seconds(),
+		"target": target.Name,
+		"window": ns.confirmTime.Seconds(),
 	})
 
 	// Apply the staged config to live path
@@ -62,7 +62,7 @@ func (ns *NetworkSafety) StageCommit(target *TargetConfig, stagedPath, backupPat
 	}
 
 	// Start auto-rollback goroutine
-	go ns.awaitConfirm(target.Name, backupPath, target.Path, onConfirm)
+	go ns.awaitConfirm(target.Name, backupPath, target.Path, target.Service, onConfirm)
 	return nil
 }
 
@@ -80,7 +80,7 @@ func (ns *NetworkSafety) Confirm(txid string) error {
 	return nil
 }
 
-func (ns *NetworkSafety) awaitConfirm(name, backupPath, livePath string, onConfirm func()) {
+func (ns *NetworkSafety) awaitConfirm(name, backupPath, livePath, serviceName string, onConfirm func()) {
 	ns.mu.Lock()
 	ch := ns.confirmCh[name]
 	ns.mu.Unlock()
@@ -96,8 +96,10 @@ func (ns *NetworkSafety) awaitConfirm(name, backupPath, livePath string, onConfi
 	case <-time.After(ns.confirmTime):
 		ns.logger.Warn("network auto-rollback", map[string]interface{}{"target": name})
 		_ = copyFile(backupPath, livePath)
-		// Try to restart network service with restored config
-		_ = runCmd("/sbin/rc-service", "networking", "restart")
+		// Restart the correct service with restored config
+		if serviceName != "" {
+			_ = runCmd("/sbin/rc-service", serviceName, "restart")
+		}
 	}
 
 	ns.cleanup(name)

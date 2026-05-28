@@ -45,11 +45,11 @@ type Dependency struct {
 
 // Manager provides structured OpenRC service management.
 type Manager struct {
-	rcService   string // absolute path
-	rcStatus    string
-	rcUpdate    string
-	logger      *log.Logger
-	timeout     time.Duration
+	rcService string // absolute path
+	rcStatus  string
+	rcUpdate  string
+	logger    *log.Logger
+	timeout   time.Duration
 }
 
 // NewManager creates an OpenRC manager with absolute binary paths.
@@ -157,11 +157,11 @@ func (m *Manager) Status(name string) (*Service, error) {
 	}
 
 	return &Service{
-		Name:    name,
-		State:   status,
+		Name:     name,
+		State:    status,
 		Runlevel: runlevel,
-		PID:     pid,
-		Enabled: enabled,
+		PID:      pid,
+		Enabled:  enabled,
 	}, nil
 }
 

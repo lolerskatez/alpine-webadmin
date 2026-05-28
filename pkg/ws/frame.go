@@ -21,9 +21,9 @@ const (
 
 // Frame represents a single WebSocket frame.
 type Frame struct {
-	Fin    bool
-	OpCode OpCode
-	Mask   bool
+	Fin     bool
+	OpCode  OpCode
+	Mask    bool
 	MaskKey [4]byte
 	Payload []byte
 }

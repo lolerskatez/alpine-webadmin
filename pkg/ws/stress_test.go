@@ -20,9 +20,9 @@ type stubHijacker struct {
 	header http.Header
 }
 
-func (s *stubHijacker) Header() http.Header        { return s.header }
+func (s *stubHijacker) Header() http.Header       { return s.header }
 func (s *stubHijacker) Write([]byte) (int, error) { return 0, nil }
-func (s *stubHijacker) WriteHeader(int)             {}
+func (s *stubHijacker) WriteHeader(int)           {}
 func (s *stubHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return s.nc, s.bufrw, nil
 }

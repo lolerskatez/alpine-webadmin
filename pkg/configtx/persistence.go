@@ -5,15 +5,18 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/log"
 )
 
 // PersistenceManager handles Alpine diskless (lbu) persistence.
 type PersistenceManager struct {
-	logger    *log.Logger
-	diskless  *bool
-	lbuFound  *bool
+	logger       *log.Logger
+	disklessOnce sync.Once
+	diskless     bool
+	lbuOnce      sync.Once
+	lbuFound     bool
 }
 
 // NewPersistenceManager creates a persistence manager.
@@ -24,40 +27,34 @@ func NewPersistenceManager(logger *log.Logger) *PersistenceManager {
 // IsDiskless detects whether the system is running in Alpine diskless mode.
 // It checks for lbu presence and tmpfs mounts on critical paths.
 func (pm *PersistenceManager) IsDiskless() bool {
-	if pm.diskless != nil {
-		return *pm.diskless
-	}
-	// Check if / is mounted as tmpfs or squashfs (diskless indicators)
-	data, err := os.ReadFile("/proc/mounts")
-	if err != nil {
-		v := false
-		pm.diskless = &v
-		return false
-	}
-	root := false
-	for _, line := range strings.Split(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) >= 3 && fields[1] == "/" {
-			fsType := fields[2]
-			if fsType == "tmpfs" || fsType == "squashfs" || fsType == "overlay" {
-				root = true
-			}
-			break
+	pm.disklessOnce.Do(func() {
+		// Check if / is mounted as tmpfs or squashfs (diskless indicators)
+		data, err := os.ReadFile("/proc/mounts")
+		if err != nil {
+			pm.diskless = false
+			return
 		}
-	}
-	pm.diskless = &root
-	return root
+		for _, line := range strings.Split(string(data), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 3 && fields[1] == "/" {
+				fsType := fields[2]
+				if fsType == "tmpfs" || fsType == "squashfs" || fsType == "overlay" {
+					pm.diskless = true
+				}
+				break
+			}
+		}
+	})
+	return pm.diskless
 }
 
 // HasLBU returns true if the `lbu` command is available.
 func (pm *PersistenceManager) HasLBU() bool {
-	if pm.lbuFound != nil {
-		return *pm.lbuFound
-	}
-	_, err := exec.LookPath("lbu")
-	v := err == nil
-	pm.lbuFound = &v
-	return v
+	pm.lbuOnce.Do(func() {
+		_, err := exec.LookPath("lbu")
+		pm.lbuFound = err == nil
+	})
+	return pm.lbuFound
 }
 
 // Persist attempts to make a config change durable.

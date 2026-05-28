@@ -73,11 +73,11 @@ type Manager struct {
 	apkBin      string
 	apkCacheDir string
 	logger      *log.Logger
-	mu          sync.Mutex        // global APK mutex: only one operation at a time
-	queue       []*Operation      // pending ops
+	mu          sync.Mutex   // global APK mutex: only one operation at a time
+	queue       []*Operation // pending ops
 	queueMu     sync.Mutex
-	running     *Operation        // currently executing op
-	history     []*Operation      // recently completed ops (bounded)
+	running     *Operation   // currently executing op
+	history     []*Operation // recently completed ops (bounded)
 	maxHistory  int
 	maxQueue    int
 	timeout     time.Duration
@@ -138,7 +138,8 @@ func (m *Manager) List(ctx context.Context) ([]PackageInfo, error) {
 }
 
 // parseInstalledVerbose parses `apk info -vv` output:
-//   "name-version - description"
+//
+//	"name-version - description"
 func (m *Manager) parseInstalledVerbose(output string) []PackageInfo {
 	var pkgs []PackageInfo
 	for _, line := range strings.Split(output, "\n") {
@@ -336,8 +337,12 @@ func (m *Manager) runMutating(ctx context.Context, opType OpType, args []string)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Apply timeout to context if not already set
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, m.timeout)
+	defer cancel()
+
 	// Execute with progress capture
-	err := m.executeWithProgress(ctx, op)
+	err := m.executeWithProgress(ctxWithTimeout, op)
 	end := time.Now()
 	op.EndedAt = &end
 

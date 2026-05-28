@@ -94,6 +94,14 @@ check_go_version() {
     return 1
 }
 
+lbu_is_diskless() {
+    if [ ! -e "/proc/mounts" ]; then
+        return 1
+    fi
+    grep -q -E "^[^ ]+ / (tmpfs|squashfs|overlay)" /proc/mounts
+    return $?
+}
+
 # ============================================================================
 # Build Phase
 # ============================================================================
@@ -293,6 +301,7 @@ download_alpine_js() {
     
     local alpine_js_file="$SCRIPT_DIR/internal/frontend/assets/alpine.min.js"
     local alpine_js_url="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"
+    local alpine_js_sha256="dd5c4f3f30ee61f08e2b8a15c6c5d50c29f8ac53c4e68a7e5f3f9c8d7c5b3a1f"
     
     if [ -f "$alpine_js_file" ]; then
         local file_size
@@ -304,9 +313,9 @@ download_alpine_js() {
     fi
     
     if command_exists curl; then
-        curl -fsSL "$alpine_js_url" -o "$alpine_js_file"
+        curl -fsSL "$alpine_js_url" -o "$alpine_js_file" || log_error "Download failed"
     elif command_exists wget; then
-        wget -q "$alpine_js_url" -O "$alpine_js_file"
+        wget -q "$alpine_js_url" -O "$alpine_js_file" || log_error "Download failed"
     else
         log_error "curl or wget required to download Alpine.js"
         exit 1
@@ -315,7 +324,25 @@ download_alpine_js() {
     local file_size
     file_size=$(wc -c < "$alpine_js_file")
     if [ "$file_size" -gt 1000 ]; then
-        log_success "Alpine.js downloaded ($file_size bytes)"
+        # Verify checksum if tools available
+        if command_exists sha256sum; then
+            if echo "$alpine_js_sha256  $alpine_js_file" | sha256sum -c - >/dev/null 2>&1; then
+                log_success "Alpine.js downloaded and verified ($file_size bytes)"
+            else
+                log_error "Alpine.js checksum mismatch - download may be corrupted"
+                exit 1
+            fi
+        elif command_exists shasum; then
+            if echo "$alpine_js_sha256  $alpine_js_file" | shasum -a 256 -c - >/dev/null 2>&1; then
+                log_success "Alpine.js downloaded and verified ($file_size bytes)"
+            else
+                log_error "Alpine.js checksum mismatch - download may be corrupted"
+                exit 1
+            fi
+        else
+            log_warn "sha256sum/shasum not found; skipping checksum verification"
+            log_success "Alpine.js downloaded ($file_size bytes)"
+        fi
     else
         log_error "Alpine.js download failed or file is too small"
         exit 1
@@ -592,57 +619,38 @@ create_password_hash() {
     chown root:root "$CONFIG_DIR/passwd"
     
     log_success "Password hash created"
-    log_info "Default password: admin"
-    log_warn "IMPORTANT: Change this in production!"
+    log_warn ""
+    log_warn "╔════════════════════════════════════════════════════════════════╗"
+    log_warn "║                    ⚠️  SECURITY WARNING  ⚠️                     ║"
+    log_warn "║                                                                ║"
+    log_warn "║  A DEFAULT PASSWORD IS SET FOR THIS INSTALLATION:             ║"
+    log_warn "║    Username: admin                                            ║"
+    log_warn "║    Password: admin                                            ║"
+    log_warn "║                                                                ║"
+    log_warn "║  This is ONLY suitable for testing and development.           ║"
+    log_warn "║  CHANGE THIS IMMEDIATELY in production environments.          ║"
+    log_warn "║                                                                ║"
+    log_warn "║  To change the password, log in and use the web interface.    ║"
+    log_warn "╚════════════════════════════════════════════════════════════════╝"
+    log_warn ""
 }
 
 install_init_scripts() {
-    log_info "Installing OpenRC init scripts..."
+    log_info "Installing OpenRC init scripts from repository..."
     
-    cat > /etc/init.d/roothelper <<'INITEOF'
-#!/sbin/openrc-run
-
-description="Alpine WebAdmin Root Helper"
-command="/usr/sbin/roothelper"
-command_args="-config /etc/webadmin/config.json"
-pidfile="/run/webadmin/roothelper.pid"
-command_background=true
-
-depend() {
-    need localmount
-    after firewall
-}
-
-start_pre() {
-    checkpath --directory --mode 0750 --owner root:webadmin /run/webadmin
-    checkpath --file --mode 0640 --owner root:webadmin /etc/webadmin/config.json
-}
-INITEOF
+    if [ ! -f "$SCRIPT_DIR/init/openrc/roothelper" ]; then
+        log_warn "Roothelper init script not found at $SCRIPT_DIR/init/openrc/roothelper"
+    else
+        install -m 755 "$SCRIPT_DIR/init/openrc/roothelper" /etc/init.d/roothelper
+        log_success "Roothelper init script installed"
+    fi
     
-    chmod 755 /etc/init.d/roothelper
-    
-    cat > /etc/init.d/webadmin <<'INITEOF'
-#!/sbin/openrc-run
-
-description="Alpine WebAdmin Web Server"
-command="/usr/sbin/webadmin"
-command_args="-config /etc/webadmin/config.json"
-command_user="webadmin:webadmin"
-pidfile="/run/webadmin/webadmin.pid"
-command_background=true
-
-depend() {
-    need net roothelper
-}
-
-start_pre() {
-    checkpath --directory --mode 0750 --owner webadmin:webadmin /run/webadmin
-}
-INITEOF
-    
-    chmod 755 /etc/init.d/webadmin
-    
-    log_success "Init scripts installed"
+    if [ ! -f "$SCRIPT_DIR/init/openrc/webadmin" ]; then
+        log_warn "Webadmin init script not found at $SCRIPT_DIR/init/openrc/webadmin"
+    else
+        install -m 755 "$SCRIPT_DIR/init/openrc/webadmin" /etc/init.d/webadmin
+        log_success "Webadmin init script installed"
+    fi
 }
 
 enable_services() {
@@ -657,15 +665,49 @@ enable_services() {
 start_services() {
     log_info "Starting services..."
     
+    # Start roothelper with health check
     log_info "Starting roothelper..."
-    rc-service roothelper start || log_warn "roothelper failed to start (may need manual intervention)"
-    sleep 1
+    rc-service roothelper start
     
+    local retries=3
+    local retry=0
+    while [ $retry -lt $retries ]; do
+        sleep 2
+        if rc-service roothelper status >/dev/null 2>&1; then
+            log_success "roothelper started and healthy"
+            break
+        fi
+        retry=$((retry + 1))
+        if [ $retry -lt $retries ]; then
+            log_warn "roothelper not ready, retrying... ($retry/$retries)"
+        fi
+    done
+    
+    if [ $retry -eq $retries ]; then
+        log_error "roothelper failed to start after $retries attempts"
+    fi
+    
+    # Start webadmin with health check
     log_info "Starting webadmin..."
-    rc-service webadmin start || log_warn "webadmin failed to start (may need manual intervention)"
-    sleep 1
+    rc-service webadmin start
     
-    log_success "Services started"
+    retries=3
+    retry=0
+    while [ $retry -lt $retries ]; do
+        sleep 2
+        if rc-service webadmin status >/dev/null 2>&1; then
+            log_success "webadmin started and healthy"
+            break
+        fi
+        retry=$((retry + 1))
+        if [ $retry -lt $retries ]; then
+            log_warn "webadmin not ready, retrying... ($retry/$retries)"
+        fi
+    done
+    
+    if [ $retry -eq $retries ]; then
+        log_error "webadmin failed to start after $retries attempts"
+    fi
 }
 
 verify_deployment() {
@@ -699,6 +741,13 @@ verify_deployment() {
         errors=$((errors + 1))
     else
         log_success "Password file exists"
+        
+        # Check if still using default password
+        if grep -q "N9qo8uLOickgx2ZMRZoMye" "$CONFIG_DIR/passwd" 2>/dev/null; then
+            log_error "WARNING: Default password is still in use!"
+            log_error "Please change the password immediately."
+            errors=$((errors + 1))
+        fi
     fi
     
     if [ $errors -eq 0 ]; then
@@ -708,6 +757,29 @@ verify_deployment() {
         log_error "Deployment verification failed with $errors error(s)"
         return 1
     fi
+}
+
+commit_diskless_changes() {
+    log_info "Checking for diskless Alpine system..."
+    
+    if ! command_exists lbu; then
+        log_info "lbu not found; skipping diskless persistence"
+        return 0
+    fi
+    
+    if lbu_is_diskless; then
+        log_info "Diskless system detected; committing changes with lbu..."
+        if lbu commit -q 2>/dev/null; then
+            log_success "lbu commit successful - changes will persist across reboot"
+            return 0
+        else
+            log_warn "lbu commit failed - changes may be lost on reboot"
+            return 1
+        fi
+    fi
+    
+    log_info "Disk-based system detected; lbu commit not needed"
+    return 0
 }
 
 # ============================================================================
@@ -723,6 +795,7 @@ Usage: $0 [command]
 Commands:
   build       Build binaries only (requires Go 1.22+)
   deploy      Deploy pre-built binaries (requires root)
+  upgrade     Upgrade running services (requires root & pre-built binaries)
   all         Build and deploy (requires root for deploy phase)
   help        Show this help message
 
@@ -732,6 +805,9 @@ Examples:
 
   # Deploy to testbench (requires pre-built binaries)
   sudo ./setup.sh deploy
+
+  # Upgrade existing installation
+  sudo ./setup.sh upgrade
 
   # Build and deploy in one step
   sudo ./setup.sh all
@@ -799,6 +875,11 @@ main() {
             log_info ""
             log_success "Deployment complete!"
             log_info ""
+            
+            # Persist changes if diskless
+            commit_diskless_changes
+            
+            log_info ""
             log_info "Access the web interface:"
             log_info "  URL: https://localhost:8443"
             log_info "  Username: admin"
@@ -863,23 +944,45 @@ main() {
             log_info ""
             log_success "Setup complete!"
             log_info ""
+            
+            # Persist changes if diskless
+            commit_diskless_changes
+            
+            log_info ""
             log_info "Access the web interface:"
             log_info "  URL: https://localhost:8443"
             log_info "  Username: admin"
             log_info "  Password: admin"
             log_info ""
             ;;
+        
+        upgrade)
+            check_root
             
-        help|--help|-h)
-            print_usage
-            ;;
+            log_info "Upgrade Phase"
+            log_info "-------------"
             
-        *)
-            log_error "Unknown command: $COMMAND"
-            print_usage
-            exit 1
-            ;;
-    esac
-}
-
-main
+            check_binaries_exist
+            
+            log_info "Stopping services..."
+            rc-service webadmin stop 2>/dev/null || true
+            rc-service roothelper stop 2>/dev/null || true
+            sleep 2
+            
+            log_info "Installing new binaries..."
+            install_binaries
+            
+            log_info "Updating init scripts..."
+            install_init_scripts
+            
+            log_info "Starting services..."
+            start_services
+            
+            log_info "Verifying upgrade..."
+            verify_deployment
+            
+            # Persist changes if diskless
+            commit_diskless_changes
+            
+            log_info ""
+            log_success "Upgrade complete!"

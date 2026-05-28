@@ -40,7 +40,7 @@ func main() {
 
 	logger.Info("roothelper starting", map[string]interface{}{
 		"version": version.Version,
-		"go":     runtime.Version(),
+		"go":      runtime.Version(),
 	})
 
 	cfg, err := config.Load(*configPath)
@@ -487,8 +487,24 @@ func (b *broker) handleHostnameSet(req ipc.Envelope) ipc.Envelope {
 	if err := json.Unmarshal(req.Payload, &body); err != nil {
 		return b.error(req, ipc.ErrInvalidRequest, err.Error())
 	}
-	if body.Hostname == "" || strings.Contains(body.Hostname, "..") || strings.Contains(body.Hostname, "/") {
+	// Strict RFC-1123 hostname validation
+	// Format: labels separated by dots, each 1-63 chars, alphanumeric and hyphen only
+	// Cannot start or end with hyphen
+	if body.Hostname == "" || len(body.Hostname) > 253 {
 		return b.error(req, ipc.ErrInvalidRequest, "invalid hostname")
+	}
+	for _, label := range strings.Split(body.Hostname, ".") {
+		if label == "" || len(label) > 63 {
+			return b.error(req, ipc.ErrInvalidRequest, "invalid hostname label")
+		}
+		if label[0] == '-' || label[len(label)-1] == '-' {
+			return b.error(req, ipc.ErrInvalidRequest, "hostname label cannot start or end with hyphen")
+		}
+		for _, c := range label {
+			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
+				return b.error(req, ipc.ErrInvalidRequest, "invalid hostname characters")
+			}
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1045,7 +1061,8 @@ func (b *broker) handleProcessKill(req ipc.Envelope) ipc.Envelope {
 	if err := json.Unmarshal(req.Payload, &body); err != nil {
 		return b.error(req, ipc.ErrInvalidRequest, err.Error())
 	}
-	if body.PID <= 0 {
+	// Validate PID bounds: cannot kill init (PID 1) and must be reasonable
+	if body.PID <= 1 || body.PID > 32767 {
 		return b.error(req, ipc.ErrInvalidRequest, "invalid pid")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1526,6 +1543,11 @@ func (b *broker) handleSshKeysWrite(req ipc.Envelope) ipc.Envelope {
 	if err := b.validateUsername(body.Username); err != nil {
 		return b.error(req, ipc.ErrInvalidRequest, err.Error())
 	}
+	// Limit SSH key size to prevent DoS (65KB max)
+	const maxSSHKeySize = 65536
+	if len(body.Content) > maxSSHKeySize {
+		return b.error(req, ipc.ErrInvalidRequest, "ssh keys content exceeds maximum size (65KB)")
+	}
 	usr, err := user.Lookup(body.Username)
 	if err != nil {
 		return b.error(req, ipc.ErrExecutionFailed, "user lookup failed: "+err.Error())
@@ -1594,4 +1616,3 @@ func generateRandomPassword(n int) string {
 	}
 	return string(b)
 }
-

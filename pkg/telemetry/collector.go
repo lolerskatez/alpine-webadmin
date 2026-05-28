@@ -11,13 +11,13 @@ import (
 
 // Collector gathers /proc metrics on a ticker and broadcasts to a Hub.
 type Collector struct {
-	hub        *Hub
-	interval   time.Duration
-	prevCPU    proc.CPUStat
+	hub         *Hub
+	interval    time.Duration
+	prevCPU     proc.CPUStat
 	prevPerCore []proc.CPUStat
-	prevDisks  []proc.DiskStat
-	mu         sync.Mutex
-	bufPool    sync.Pool
+	prevDisks   []proc.DiskStat
+	mu          sync.Mutex
+	bufPool     sync.Pool
 }
 
 // NewCollector creates a telemetry collector.

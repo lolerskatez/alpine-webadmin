@@ -10,14 +10,14 @@ import (
 
 // Defaults
 const (
-	DefaultListen        = ":8080"
-	DefaultIPCSocket     = "/run/webadmin/ipc.sock"
-	DefaultLogsSocket    = "/run/webadmin/logs.sock"
-	DefaultSessionTTL    = 3600
-	DefaultWSMaxConns    = 10
+	DefaultListen         = ":8080"
+	DefaultIPCSocket      = "/run/webadmin/ipc.sock"
+	DefaultLogsSocket     = "/run/webadmin/logs.sock"
+	DefaultSessionTTL     = 3600
+	DefaultWSMaxConns     = 10
 	DefaultWSMaxFrameSize = 65536
-	DefaultRateLimitRPS  = 20
-	DefaultAuditLogPath  = "/var/log/webadmin/webadmin.log"
+	DefaultRateLimitRPS   = 20
+	DefaultAuditLogPath   = "/var/log/webadmin/webadmin.log"
 )
 
 // Config holds runtime configuration loaded from /etc/webadmin/config.json.

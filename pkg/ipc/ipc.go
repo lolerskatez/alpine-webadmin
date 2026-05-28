@@ -232,10 +232,10 @@ type ServiceEntry struct {
 }
 
 type ServiceStatusData struct {
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	PID     int    `json:"pid,omitempty"`
-	Enabled bool   `json:"enabled,omitempty"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	PID      int    `json:"pid,omitempty"`
+	Enabled  bool   `json:"enabled,omitempty"`
 	Runlevel string `json:"runlevel,omitempty"`
 }
 
@@ -265,14 +265,14 @@ type PackageSearchData struct {
 }
 
 type PackageOpData struct {
-	OpID      string           `json:"op_id"`
-	Type      string           `json:"type"`
-	State     string           `json:"state"`
-	Progress  []ProgressLine   `json:"progress,omitempty"`
-	Error     string           `json:"error,omitempty"`
-	CreatedAt int64            `json:"created_at"`
-	StartedAt *int64           `json:"started_at,omitempty"`
-	EndedAt   *int64           `json:"ended_at,omitempty"`
+	OpID      string         `json:"op_id"`
+	Type      string         `json:"type"`
+	State     string         `json:"state"`
+	Progress  []ProgressLine `json:"progress,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	CreatedAt int64          `json:"created_at"`
+	StartedAt *int64         `json:"started_at,omitempty"`
+	EndedAt   *int64         `json:"ended_at,omitempty"`
 }
 
 type ProgressLine struct {
@@ -300,60 +300,60 @@ const (
 // ── Message Types ──────────────────────────────────
 
 const (
-	TypeServiceList    = "cap.service.list"
-	TypeServiceStatus  = "cap.service.status"
-	TypeServiceControl = "cap.service.control"
-	TypeServiceEnable  = "cap.service.enable"
-	TypeServiceDisable = "cap.service.disable"
-	TypeSystemInfo     = "cap.system.info"
-	TypePackageList    = "cap.package.list"
-	TypePackageSearch  = "cap.package.search"
-	TypePackageInfo    = "cap.package.info"
-	TypePackageInstall = "cap.package.install"
-	TypePackageRemove  = "cap.package.remove"
-	TypePackageUpdate  = "cap.package.update"
-	TypePackageUpgrade = "cap.package.upgrade"
-	TypePackageOpQuery = "cap.package.opquery"
-	TypeReboot         = "cap.system.reboot"
-	TypeShutdown       = "cap.system.shutdown"
-	TypeUserCreate     = "cap.user.create"
-	TypePasswordReset  = "cap.user.password"
-	TypeLoginVerify    = "cap.auth.login"
-	TypeMount          = "cap.fs.mount"
-	TypeUnmount        = "cap.fs.unmount"
-	TypeKModLoad       = "cap.kmod.load"
-	TypeKModUnload     = "cap.kmod.unload"
-	TypeHostnameSet    = "cap.system.hostname"
-	TypeUserDelete     = "cap.user.delete"
-	TypeUserLock       = "cap.user.lock"
-	TypeUserUnlock     = "cap.user.unlock"
-	TypeApkRepoRead    = "cap.apk.repo.read"
-	TypeApkRepoWrite   = "cap.apk.repo.write"
-	TypeSshConfigRead  = "cap.ssh.config.read"
-	TypeSshConfigWrite = "cap.ssh.config.write"
-	TypeCronRead       = "cap.cron.read"
-	TypeCronWrite      = "cap.cron.write"
-	TypeProcessKill    = "cap.process.kill"
-	TypeLogRead        = "cap.log.read"
-	TypeNetIfUp        = "cap.net.if.up"
-	TypeNetIfDown      = "cap.net.if.down"
-	TypeFstabRead      = "cap.fstab.read"
-	TypeFstabWrite     = "cap.fstab.write"
-	TypeTimezoneSet    = "cap.timezone.set"
-	TypeNtpSet         = "cap.ntp.set"
-	TypeServiceLogRead = "cap.service.log.read"
-	TypeUserGroupAdd    = "cap.user.group.add"
-	TypeUserGroupRemove = "cap.user.group.remove"
-	TypeShellChange     = "cap.user.shell"
-	TypeLbuCommit       = "cap.lbu.commit"
-	TypeLbuStatus       = "cap.lbu.status"
-	TypeLbuList         = "cap.lbu.list"
-	TypeLbuRestore      = "cap.lbu.restore"
-	TypeSshKeysRead     = "cap.ssh.keys.read"
-	TypeSshKeysWrite    = "cap.ssh.keys.write"
-	TypeResolvRead      = "cap.resolv.read"
-	TypeResolvWrite     = "cap.resolv.write"
-	TypeClockSet         = "cap.clock.set"
+	TypeServiceList       = "cap.service.list"
+	TypeServiceStatus     = "cap.service.status"
+	TypeServiceControl    = "cap.service.control"
+	TypeServiceEnable     = "cap.service.enable"
+	TypeServiceDisable    = "cap.service.disable"
+	TypeSystemInfo        = "cap.system.info"
+	TypePackageList       = "cap.package.list"
+	TypePackageSearch     = "cap.package.search"
+	TypePackageInfo       = "cap.package.info"
+	TypePackageInstall    = "cap.package.install"
+	TypePackageRemove     = "cap.package.remove"
+	TypePackageUpdate     = "cap.package.update"
+	TypePackageUpgrade    = "cap.package.upgrade"
+	TypePackageOpQuery    = "cap.package.opquery"
+	TypeReboot            = "cap.system.reboot"
+	TypeShutdown          = "cap.system.shutdown"
+	TypeUserCreate        = "cap.user.create"
+	TypePasswordReset     = "cap.user.password"
+	TypeLoginVerify       = "cap.auth.login"
+	TypeMount             = "cap.fs.mount"
+	TypeUnmount           = "cap.fs.unmount"
+	TypeKModLoad          = "cap.kmod.load"
+	TypeKModUnload        = "cap.kmod.unload"
+	TypeHostnameSet       = "cap.system.hostname"
+	TypeUserDelete        = "cap.user.delete"
+	TypeUserLock          = "cap.user.lock"
+	TypeUserUnlock        = "cap.user.unlock"
+	TypeApkRepoRead       = "cap.apk.repo.read"
+	TypeApkRepoWrite      = "cap.apk.repo.write"
+	TypeSshConfigRead     = "cap.ssh.config.read"
+	TypeSshConfigWrite    = "cap.ssh.config.write"
+	TypeCronRead          = "cap.cron.read"
+	TypeCronWrite         = "cap.cron.write"
+	TypeProcessKill       = "cap.process.kill"
+	TypeLogRead           = "cap.log.read"
+	TypeNetIfUp           = "cap.net.if.up"
+	TypeNetIfDown         = "cap.net.if.down"
+	TypeFstabRead         = "cap.fstab.read"
+	TypeFstabWrite        = "cap.fstab.write"
+	TypeTimezoneSet       = "cap.timezone.set"
+	TypeNtpSet            = "cap.ntp.set"
+	TypeServiceLogRead    = "cap.service.log.read"
+	TypeUserGroupAdd      = "cap.user.group.add"
+	TypeUserGroupRemove   = "cap.user.group.remove"
+	TypeShellChange       = "cap.user.shell"
+	TypeLbuCommit         = "cap.lbu.commit"
+	TypeLbuStatus         = "cap.lbu.status"
+	TypeLbuList           = "cap.lbu.list"
+	TypeLbuRestore        = "cap.lbu.restore"
+	TypeSshKeysRead       = "cap.ssh.keys.read"
+	TypeSshKeysWrite      = "cap.ssh.keys.write"
+	TypeResolvRead        = "cap.resolv.read"
+	TypeResolvWrite       = "cap.resolv.write"
+	TypeClockSet          = "cap.clock.set"
 	TypePackageCacheClean = "cap.package.cache.clean"
 	TypeDhcpToggle        = "cap.network.dhcp.toggle"
 	TypeResponseOK        = "response.ok"

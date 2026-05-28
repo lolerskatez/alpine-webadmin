@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alpine-webadmin/alpine-webadmin/internal/frontend"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/auth"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/config"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/ipc"
@@ -28,7 +29,6 @@ import (
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/telemetry"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/version"
 	"github.com/alpine-webadmin/alpine-webadmin/pkg/ws"
-	"github.com/alpine-webadmin/alpine-webadmin/internal/frontend"
 )
 
 var (
@@ -46,7 +46,7 @@ func main() {
 
 	logger.Info("webadmin starting", map[string]interface{}{
 		"version": version.Version,
-		"go":     runtime.Version(),
+		"go":      runtime.Version(),
 	})
 
 	cfg, err := config.Load(*configPath)
@@ -1132,13 +1132,13 @@ func main() {
 			return
 		}
 		type procInfo struct {
-			PID      int     `json:"pid"`
-			Name     string  `json:"name"`
-			User     string  `json:"user"`
-			CPU      float64 `json:"cpu"`
-			Mem      float64 `json:"mem"`
-			State    string  `json:"state"`
-			Command  string  `json:"command"`
+			PID     int     `json:"pid"`
+			Name    string  `json:"name"`
+			User    string  `json:"user"`
+			CPU     float64 `json:"cpu"`
+			Mem     float64 `json:"mem"`
+			State   string  `json:"state"`
+			Command string  `json:"command"`
 		}
 		var processes []procInfo
 		entries, _ := os.ReadDir("/proc")
@@ -2318,8 +2318,8 @@ func main() {
 	handler = securityHeaders(handler)
 
 	server := &http.Server{
-		Addr:         cfg.Listen,
-		Handler:      handler,
+		Addr:           cfg.Listen,
+		Handler:        handler,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		IdleTimeout:    120 * time.Second,

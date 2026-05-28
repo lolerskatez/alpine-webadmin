@@ -11,12 +11,12 @@ import (
 
 // StreamConfig controls telemetry WebSocket behavior.
 type StreamConfig struct {
-	MaxConns       int
-	SendBuffer     int
-	WriteTimeout   time.Duration
-	ReadTimeout    time.Duration
-	PingInterval   time.Duration
-	ClientTimeout  time.Duration
+	MaxConns      int
+	SendBuffer    int
+	WriteTimeout  time.Duration
+	ReadTimeout   time.Duration
+	PingInterval  time.Duration
+	ClientTimeout time.Duration
 }
 
 // DefaultStreamConfig returns sensible defaults.
@@ -43,9 +43,10 @@ type Stream struct {
 }
 
 type streamConn struct {
-	wsConn   *ws.Conn
-	teleConn *Conn
-	lastPong time.Time
+	wsConn     *ws.Conn
+	teleConn   *Conn
+	lastPong   time.Time
+	removeOnce sync.Once
 }
 
 // NewStream creates a telemetry stream manager.
@@ -141,15 +142,17 @@ func (s *Stream) writeLoop(sc *streamConn) {
 }
 
 func (s *Stream) remove(sc *streamConn) {
-	s.mu.Lock()
-	if _, ok := s.conns[sc]; ok {
-		delete(s.conns, sc)
-		s.mu.Unlock()
-		s.hub.Unregister(sc.teleConn)
-		sc.wsConn.WriteClose(1001, "server closing")
-	} else {
-		s.mu.Unlock()
-	}
+	sc.removeOnce.Do(func() {
+		s.mu.Lock()
+		if _, ok := s.conns[sc]; ok {
+			delete(s.conns, sc)
+			s.mu.Unlock()
+			s.hub.Unregister(sc.teleConn)
+			sc.wsConn.WriteClose(1001, "server closing")
+		} else {
+			s.mu.Unlock()
+		}
+	})
 }
 
 // Count returns active connections.

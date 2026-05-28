@@ -21,8 +21,7 @@ package() {
     install -Dm755 bin/webadmin "$pkgdir"/usr/sbin/webadmin
     install -Dm755 bin/roothelper "$pkgdir"/usr/sbin/roothelper
 
-    install -Dm640 config.json "$pkgdir"/etc/webadmin/config.json
-    install -Dm640 services.json "$pkgdir"/etc/webadmin/services.json
+    install -Dm640 etc/config.json "$pkgdir"/etc/webadmin/config.json
 
     install -Dm755 init/openrc/webadmin "$pkgdir"/etc/init.d/webadmin
     install -Dm755 init/openrc/roothelper "$pkgdir"/etc/init.d/roothelper

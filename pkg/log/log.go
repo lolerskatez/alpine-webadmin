@@ -49,9 +49,9 @@ func (l *Logger) log(level Level, msg string, fields map[string]interface{}) {
 	}
 
 	rec := map[string]interface{}{
-		"ts":   time.Now().UTC().Format(time.RFC3339),
-		"lvl":  string(level),
-		"msg":  msg,
+		"ts":     time.Now().UTC().Format(time.RFC3339),
+		"lvl":    string(level),
+		"msg":    msg,
 		"caller": caller,
 	}
 	for k, v := range fields {

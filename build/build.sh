@@ -3,9 +3,20 @@ set -e
 
 VERSION="${1:-0.1.0}"
 OUTDIR="dist"
+ALPINE_JS_FILE="internal/frontend/assets/alpine.min.js"
+ALPINE_JS_URL="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"
 
 echo "=== Alpine WebAdmin Release Build ==="
 echo "Version: $VERSION"
+
+# Ensure Alpine.js is present before building
+if [ ! -f "$ALPINE_JS_FILE" ] || [ $(wc -c < "$ALPINE_JS_FILE") -lt 1000 ]; then
+    echo "Downloading Alpine.js..."
+    curl -fsSL -o "$ALPINE_JS_FILE" "$ALPINE_JS_URL" || wget -q -O "$ALPINE_JS_FILE" "$ALPINE_JS_URL" || {
+        echo "Failed to download Alpine.js"
+        exit 1
+    }
+fi
 
 mkdir -p "$OUTDIR"
 

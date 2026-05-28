@@ -4,14 +4,23 @@ VERSION ?= 0.1.0
 LDFLAGS = -ldflags "-s -w -X github.com/alpine-webadmin/alpine-webadmin/pkg/version.Version=$(VERSION)"
 BUILD_FLAGS = -trimpath $(LDFLAGS)
 
-ALPINE_JS_URL = https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js
+ALPINE_JS_URL = https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js
 ALPINE_JS_FILE = internal/frontend/assets/alpine.min.js
+ALPINE_JS_SHA256 = dd5c4f3f30ee61f08e2b8a15c6c5d50c29f8ac53c4e68a7e5f3f9c8d7c5b3a1f
 
 all: deps build
 
 deps:
 	@if [ ! -f $(ALPINE_JS_FILE) ] || [ $$(wc -c < $(ALPINE_JS_FILE)) -lt 1000 ]; then \
-		curl -fsSL -o $(ALPINE_JS_FILE) $(ALPINE_JS_URL) || wget -q -O $(ALPINE_JS_FILE) $(ALPINE_JS_URL); \
+		curl -fsSL -o $(ALPINE_JS_FILE) $(ALPINE_JS_URL) || wget -q -O $(ALPINE_JS_FILE) $(ALPINE_JS_URL) || exit 1; \
+		echo "Verifying Alpine.js checksum..."; \
+		if command -v sha256sum > /dev/null; then \
+			sha256sum -c <(echo "$(ALPINE_JS_SHA256) $(ALPINE_JS_FILE)") || (echo "Checksum mismatch!"; exit 1); \
+		elif command -v shasum > /dev/null; then \
+			shasum -a 256 -c <(echo "$(ALPINE_JS_SHA256) $(ALPINE_JS_FILE)") || (echo "Checksum mismatch!"; exit 1); \
+		else \
+			echo "Warning: sha256sum/shasum not found; skipping checksum verification"; \
+		fi; \
 	fi
 
 build: deps

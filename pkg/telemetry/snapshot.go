@@ -2,16 +2,16 @@ package telemetry
 
 // Snapshot holds a single telemetry sample.
 type Snapshot struct {
-	Timestamp   int64        `json:"ts"`
-	CPU         CPUStats     `json:"cpu"`
-	Memory      MemStats     `json:"memory"`
-	Load        LoadStats    `json:"load"`
-	Disks       []DiskStats  `json:"disks,omitempty"`
-	Net         []NetStats   `json:"network,omitempty"`
-	Mounts      []MountStats `json:"mounts,omitempty"`
-	UptimeSec   int64        `json:"uptime_sec"`
-	TempC       *float64     `json:"temp_c,omitempty"`
-	Hostname    string       `json:"hostname"`
+	Timestamp int64        `json:"ts"`
+	CPU       CPUStats     `json:"cpu"`
+	Memory    MemStats     `json:"memory"`
+	Load      LoadStats    `json:"load"`
+	Disks     []DiskStats  `json:"disks,omitempty"`
+	Net       []NetStats   `json:"network,omitempty"`
+	Mounts    []MountStats `json:"mounts,omitempty"`
+	UptimeSec int64        `json:"uptime_sec"`
+	TempC     *float64     `json:"temp_c,omitempty"`
+	Hostname  string       `json:"hostname"`
 }
 
 type CPUStats struct {

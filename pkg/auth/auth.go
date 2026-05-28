@@ -314,15 +314,15 @@ func CheckPassword(plain, hash string) bool {
 
 // FailedLoginTracker tracks per-IP failed login attempts with lockout.
 type FailedLoginTracker struct {
-	mu       sync.Mutex
-	attempts map[string]*failedEntry
-	maxAttempts int
+	mu              sync.Mutex
+	attempts        map[string]*failedEntry
+	maxAttempts     int
 	lockoutDuration time.Duration
 }
 
 type failedEntry struct {
-	count   int
-	lastFail time.Time
+	count       int
+	lastFail    time.Time
 	lockedUntil time.Time
 }
 
@@ -330,8 +330,8 @@ type failedEntry struct {
 // further attempts from that IP are rejected.
 func NewFailedLoginTracker(maxAttempts int, lockoutDuration time.Duration) *FailedLoginTracker {
 	return &FailedLoginTracker{
-		attempts: make(map[string]*failedEntry),
-		maxAttempts: maxAttempts,
+		attempts:        make(map[string]*failedEntry),
+		maxAttempts:     maxAttempts,
 		lockoutDuration: lockoutDuration,
 	}
 }
