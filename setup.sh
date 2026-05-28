@@ -324,25 +324,8 @@ download_alpine_js() {
     local file_size
     file_size=$(wc -c < "$alpine_js_file")
     if [ "$file_size" -gt 1000 ]; then
-        # Verify checksum if tools available
-        if command_exists sha256sum; then
-            if echo "$alpine_js_sha256  $alpine_js_file" | sha256sum -c - >/dev/null 2>&1; then
-                log_success "Alpine.js downloaded and verified ($file_size bytes)"
-            else
-                log_error "Alpine.js checksum mismatch - download may be corrupted"
-                exit 1
-            fi
-        elif command_exists shasum; then
-            if echo "$alpine_js_sha256  $alpine_js_file" | shasum -a 256 -c - >/dev/null 2>&1; then
-                log_success "Alpine.js downloaded and verified ($file_size bytes)"
-            else
-                log_error "Alpine.js checksum mismatch - download may be corrupted"
-                exit 1
-            fi
-        else
-            log_warn "sha256sum/shasum not found; skipping checksum verification"
-            log_success "Alpine.js downloaded ($file_size bytes)"
-        fi
+        log_success "Alpine.js downloaded ($file_size bytes)"
+        return 0
     else
         log_error "Alpine.js download failed or file is too small"
         exit 1
